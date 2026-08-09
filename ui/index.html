@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>the load board — Ridgeline Freight</title>
+<style>
+  /* THE LOAD BOARD. A dispatcher does not read cards, pages, dossiers or a
+     NOC wall — a dispatcher reads a GRID: one line per load, the same columns
+     every time, customer and lane and driver where the eye already expects
+     them, and the money on the right. Everything here is a column or a chip.
+     Full-bleed, because a board that fits in a text measure is not a board.
+
+     Deliberately unlike its siblings: owp-code's console is cards, publish's
+     desk is paper, research's briefing room is a document, ops's estate board
+     is a keyboard-driven terminal wall. This is a freight office whiteboard
+     that happens to be a browser tab.
+
+     TWO VIEWING DISTANCES, because a real board has two. `board` density is
+     for the monitor on the wall the whole office glances at; `desk` density is
+     for the operator working a two-hundred-row Monday six inches from the
+     glass. The choice is remembered. That is the whole of the customisation —
+     a dispatcher does not want a theme, they want to be able to read it. */
+  :root {
+    --board:#dfe4e8; --row:#fff; --alt:#f2f5f7; --head:#1b262e; --headink:#e9eef1;
+    --rule:#bcc6cd; --hair:#dce2e6; --ink:#16202a; --dim:#5b6873; --faint:#8b979f;
+    --orange:#b8460e; --orange-bg:#fbe9df; --amber:#8a6100; --amber-bg:#faf0d8;
+    --green:#1c6a45; --green-bg:#e2f0e8; --blue:#1c5375; --blue-bg:#e2edf5;
+    --red:#a01c1c; --red-bg:#fbe4e4;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    /* the density dial — every size on the page is a multiple of these two */
+    --fs:15px; --pad:9px;
+  }
+  html.desk { --fs:13px; --pad:5px; }
+  @media (prefers-color-scheme: dark) {
+    :root { --board:#0d1317; --row:#161e24; --alt:#131b21; --head:#05090c; --headink:#d8e2e8;
+      --rule:#2b353d; --hair:#222b32; --ink:#dde5ea; --dim:#8a99a4; --faint:#63727c;
+      --orange:#e3763f; --orange-bg:#2a1a12; --amber:#d0a02c; --amber-bg:#26200f;
+      --green:#57b085; --green-bg:#12241b; --blue:#69a8d4; --blue-bg:#101f2a;
+      --red:#e88; --red-bg:#2b1414; }
+  }
+  * { box-sizing:border-box; margin:0; }
+  html, body { height:100%; }
+  body { background:var(--board); color:var(--ink); font-family:var(--sans); font-size:var(--fs);
+    display:flex; flex-direction:column; -webkit-font-smoothing:antialiased; }
+  :focus-visible { outline:2px solid var(--orange); outline-offset:1px; }
+
+  /* ---- the head board ---- */
+  header { background:var(--head); color:var(--headink); padding:10px 16px 0; }
+  .marque { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  .marque h1 { font-size:calc(var(--fs) + 1px); letter-spacing:.26em; text-transform:uppercase; font-weight:700; }
+  .marque .sub { font-size:calc(var(--fs) - 3px); letter-spacing:.18em; text-transform:uppercase; color:#8fa1ad; }
+  .marque select { background:transparent; color:#c8d3da; border:1px solid #33424c; border-radius:2px;
+    font-family:var(--sans); font-size:calc(var(--fs) - 2px); padding:2px 6px; }
+  .live { margin-left:auto; display:flex; align-items:center; gap:7px; font-size:calc(var(--fs) - 3px); color:#8fa1ad; }
+  .live .dot { width:7px; height:7px; border-radius:50%; background:#7fc9a2; flex:none; }
+  .live.stale .dot { background:#e6c46a; } .live.down .dot { background:#ef8b6d; }
+  .live.down { color:#ef8b6d; font-weight:600; }
+  .tiles { display:flex; gap:1px; margin:10px 0 0; overflow-x:auto; }
+  .tile { background:rgba(255,255,255,.06); padding:calc(var(--pad) - 2px) 16px var(--pad); min-width:112px; }
+  .tile b { display:block; font-family:var(--mono); font-size:calc(var(--fs) + 8px); line-height:1.1; font-weight:600; }
+  .tile span { font-size:calc(var(--fs) - 4px); letter-spacing:.16em; text-transform:uppercase; color:#8fa1ad; }
+  .tile.you b { color:#f0a05e; } .tile.held b { color:#e6c46a; } .tile.roll b { color:#7fc9a2; }
+  .tile.money b { color:#cfe0ea; }
+
+  /* ---- filter rail ---- */
+  .rail { display:flex; align-items:center; gap:6px; padding:calc(var(--pad) - 2px) 16px; background:var(--row);
+    border-bottom:1px solid var(--rule); overflow-x:auto; }
+  .rail .lbl { font-size:calc(var(--fs) - 4px); letter-spacing:.16em; text-transform:uppercase; color:var(--faint); margin-right:4px; }
+  .chip { font-family:var(--mono); font-size:calc(var(--fs) - 3px); padding:3px 9px; border:1px solid var(--rule);
+    background:transparent; color:var(--dim); cursor:pointer; white-space:nowrap; border-radius:2px; }
+  .chip:hover { border-color:var(--orange); color:var(--orange); }
+  .chip.on { background:var(--orange); border-color:var(--orange); color:#fff; }
+  .rail .right { margin-left:auto; display:flex; gap:6px; align-items:center; }
+  .rail input.find { font-family:var(--sans); font-size:calc(var(--fs) - 2px); padding:3px 8px; width:210px;
+    border:1px solid var(--rule); border-radius:2px; background:var(--board); color:var(--ink); }
+
+  /* ---- the honest banners ---- */
+  .banner { padding:9px 16px; font-size:calc(var(--fs) - 1px); display:flex; gap:12px; align-items:baseline;
+    border-bottom:1px solid var(--rule); }
+  .banner.bad { background:var(--red-bg); color:var(--red); }
+  .banner.note { background:var(--amber-bg); color:var(--amber); }
+  .banner b { font-weight:700; }
+  .banner code { font-family:var(--mono); font-size:calc(var(--fs) - 3px); opacity:.75; }
+  .banner .sp { margin-left:auto; display:flex; gap:8px; }
+
+  /* ---- the grid ---- */
+  main { flex:1; overflow:auto; }
+  table { width:100%; border-collapse:collapse; }
+  thead th { position:sticky; top:0; z-index:2; background:var(--board); text-align:left;
+    font-size:calc(var(--fs) - 4px); letter-spacing:.14em; text-transform:uppercase; color:var(--dim);
+    padding:7px 10px; border-bottom:1px solid var(--rule); white-space:nowrap; }
+  thead th.num { text-align:right; }
+  tbody tr.load { border-bottom:1px solid var(--hair); cursor:pointer; background:var(--row); }
+  tbody tr.load.z { background:var(--alt); }
+  tbody tr.load:hover td { background:rgba(184,70,14,.07); }
+  tbody tr.load.sel td { background:var(--orange-bg); box-shadow:inset 0 2px 0 var(--orange); }
+  tbody tr.load.hi td:first-child { box-shadow:inset 3px 0 0 var(--orange); }
+  td { padding:var(--pad) 10px; vertical-align:middle; white-space:nowrap; }
+  td.ref { font-family:var(--mono); font-size:calc(var(--fs) - 1px); }
+  td.ref.dup { color:var(--faint); }
+  td.cust b { font-weight:600; } td.cust i { font-style:normal; color:var(--orange); font-size:calc(var(--fs) - 3px); }
+  td.lane { font-family:var(--mono); font-size:calc(var(--fs) - 1px); color:var(--blue); }
+  td.who { color:var(--dim); font-size:calc(var(--fs) - 1px); max-width:190px; overflow:hidden; text-overflow:ellipsis; }
+  td.title { max-width:1px; width:36%; overflow:hidden; text-overflow:ellipsis; }
+  td.num { text-align:right; font-family:var(--mono); font-size:calc(var(--fs) - 1px); }
+  td.age { text-align:right; font-family:var(--mono); font-size:calc(var(--fs) - 1px); color:var(--dim); }
+  /* Waiting is a FACT, rendered with weight — never an alarm, never a deadline.
+     The protocol has no calendar; this is the operator's own eye on elapsed
+     time, which is the observation §8 already reports. */
+  td.age.a2 { color:var(--ink); }
+  td.age.a3 { color:var(--ink); font-weight:700; }
+  td.age.a4 { color:var(--orange); font-weight:700; }
+  td.age.a4::before { content:"● "; font-size:.7em; vertical-align:2px; }
+  .status { display:inline-block; min-width:88px; text-align:center; font-size:calc(var(--fs) - 4px); font-weight:700;
+    letter-spacing:.1em; text-transform:uppercase; padding:3px 6px; border-radius:2px; }
+  .s-call { background:var(--orange-bg); color:var(--orange); box-shadow:inset 0 0 0 1px var(--orange); }
+  .s-yesno { background:var(--blue-bg); color:var(--blue); box-shadow:inset 0 0 0 1px var(--blue); }
+  .s-signoff { background:var(--green-bg); color:var(--green); box-shadow:inset 0 0 0 1px var(--green); }
+  .s-hold   { background:var(--amber-bg); color:var(--amber); box-shadow:inset 0 0 0 1px var(--amber); }
+  .s-roll   { background:transparent; color:var(--dim); box-shadow:inset 0 0 0 1px var(--rule); }
+  .track { font-family:var(--mono); font-size:calc(var(--fs) - 3px); letter-spacing:.08em; color:var(--faint); }
+  .track b { color:var(--ink); }
+  .track i { font-style:normal; color:var(--green); }
+  .hot { color:var(--orange); font-weight:700; }
+
+  /* ---- the dispatch slip ---- */
+  tr.slip > td { background:var(--alt); border-bottom:2px solid var(--rule); white-space:normal; padding:0; }
+  .slipbody { display:grid; grid-template-columns:minmax(0,1fr) 300px; gap:0; }
+  @media (max-width:1000px) { .slipbody { grid-template-columns:minmax(0,1fr); } .slipmain { border-right:none; } }
+  .slipmain { padding:14px 18px 16px; border-right:1px solid var(--rule); }
+  .sliphead { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:3px; }
+  .sliphead h3 { font-size:calc(var(--fs) + 2px); }
+  .sliphead .big { margin-left:auto; font-family:var(--mono); font-size:calc(var(--fs) + 6px); font-weight:600; }
+  .slipmain .intent { color:var(--dim); margin-bottom:10px; }
+  .ask { font-size:calc(var(--fs) + 1px); font-weight:600; margin:12px 0 4px; }
+  .nothing { margin:12px 0 2px; padding:8px 11px; background:var(--row); border-left:3px solid var(--rule);
+    font-size:calc(var(--fs) - 1px); color:var(--dim); }
+  .nothing b { color:var(--ink); }
+  .rule { margin:12px 0 2px; padding:8px 11px; background:var(--orange-bg); border-left:3px solid var(--orange);
+    font-size:calc(var(--fs) - 1px); color:var(--ink); }
+  .rule .lbl { display:block; }
+  .kv { display:grid; grid-template-columns:130px minmax(0,1fr); gap:3px 12px; font-size:calc(var(--fs) - 1px); margin:10px 0; }
+  .kv dt { font-size:calc(var(--fs) - 4px); letter-spacing:.14em; text-transform:uppercase; color:var(--faint); padding-top:2px; }
+  .kv dd { color:var(--ink); overflow-wrap:anywhere; }
+  .kv dd a { color:var(--blue); }
+  .lbl { font-size:calc(var(--fs) - 4px); letter-spacing:.14em; text-transform:uppercase; color:var(--faint); }
+  /* An option is a thing you PRESS, not a paragraph next to a button that
+     repeats its letter. The money moment is safe when what you read and what
+     you click are the same object. */
+  button.opt { display:block; width:100%; text-align:left; font-family:var(--sans); font-size:var(--fs);
+    color:var(--ink); background:var(--row); border:1px solid var(--rule); border-left:3px solid var(--orange);
+    border-radius:2px; padding:9px 12px; margin:7px 0; cursor:pointer; }
+  button.opt:hover { border-color:var(--orange); background:var(--orange-bg); }
+  button.opt .id { font-family:var(--mono); color:var(--orange); font-weight:700; margin-right:7px; }
+  button.opt .lab { font-weight:600; }
+  button.opt .trade { color:var(--dim); font-size:calc(var(--fs) - 1px); display:block; margin-top:2px; }
+  button.opt ul { margin:5px 0 0 17px; color:var(--dim); font-size:calc(var(--fs) - 1px); }
+  .ev { color:var(--dim); font-size:calc(var(--fs) - 1px); margin:2px 0 0 14px; }
+  .log { margin:12px 0 0; border-top:1px solid var(--rule); padding-top:8px; }
+  .log .line { display:grid; grid-template-columns:58px 96px minmax(0,1fr); gap:10px; font-size:calc(var(--fs) - 1px);
+    padding:3px 0; border-bottom:1px solid var(--hair); }
+  .log .t, .log .k { font-family:var(--mono); font-size:calc(var(--fs) - 3px); color:var(--faint); }
+  .log .quiet { color:var(--dim); font-style:italic; }
+  .slipside { padding:14px 16px; display:flex; flex-direction:column; gap:7px; }
+  button.act { font-family:var(--sans); font-size:calc(var(--fs) - 1px); text-align:left; padding:8px 11px; cursor:pointer;
+    border:1px solid var(--rule); background:var(--row); color:var(--ink); border-radius:2px; }
+  button.act:hover { border-color:var(--orange); color:var(--orange); }
+  button.act.go { background:var(--orange); border-color:var(--orange); color:#fff; font-weight:600; }
+  button.act.go:hover { color:#fff; filter:brightness(1.08); }
+  button.act:disabled { opacity:.45; cursor:default; }
+  .slipside hr { border:none; border-top:1px solid var(--rule); margin:3px 0; }
+
+  /* ---- the turn-it-down form: a typed protocol word was never a safe UI ---- */
+  .form { margin:12px 0 0; padding:12px 14px; background:var(--row); border:1px solid var(--orange); border-radius:2px; }
+  .form h4 { font-size:var(--fs); margin-bottom:7px; }
+  .form textarea, .form input[type=text] { width:100%; font-family:var(--sans); font-size:var(--fs); padding:7px 9px;
+    border:1px solid var(--rule); border-radius:2px; background:var(--board); color:var(--ink); }
+  .form textarea { min-height:60px; resize:vertical; }
+  .form .opts { margin:10px 0 4px; display:flex; flex-direction:column; gap:5px; }
+  .form label.pick { display:grid; grid-template-columns:18px minmax(0,1fr); gap:8px; align-items:baseline;
+    padding:6px 8px; border:1px solid var(--hair); border-radius:2px; cursor:pointer; }
+  .form label.pick:hover { border-color:var(--orange); }
+  .form label.pick b { font-weight:600; }
+  .form label.pick .g { display:block; color:var(--dim); font-size:calc(var(--fs) - 1px); }
+  .form label.pick.final { border-color:var(--red); }
+  .form label.pick.final b { color:var(--red); }
+  .form .go { margin-top:10px; display:flex; gap:8px; }
+
+  /* ---- footer ---- */
+  footer { background:var(--head); color:#8fa1ad; padding:calc(var(--pad) - 1px) 16px; display:flex; gap:14px;
+    align-items:center; font-size:calc(var(--fs) - 2px); flex-wrap:wrap; }
+  footer .flash { color:#8ce0b4; font-family:var(--mono); }
+  footer button.act { background:transparent; color:#c8d3da; border-color:#33424c;
+    font-size:calc(var(--fs) - 2px); padding:4px 10px; }
+  footer button.act:hover { border-color:#f0a05e; color:#f0a05e; }
+  footer .count { font-family:var(--mono); }
+  footer .keys { color:#5d6d78; font-family:var(--mono); font-size:calc(var(--fs) - 4px); }
+  #wire { display:none; background:var(--row); border-top:1px solid var(--rule); padding:12px 16px;
+    font-family:var(--mono); font-size:calc(var(--fs) - 3px); color:var(--dim); white-space:pre-wrap; }
+  #wire .why { font-family:var(--sans); font-size:calc(var(--fs) - 2px); color:var(--faint); display:block; margin-bottom:8px; }
+
+  /* ---- the states that are not a grid ---- */
+  .state { padding:64px 24px; text-align:center; color:var(--dim); }
+  .state h2 { font-size:calc(var(--fs) + 3px); letter-spacing:.2em; text-transform:uppercase; color:var(--faint);
+    font-weight:600; margin-bottom:10px; }
+  .state p { max-width:52ch; margin:0 auto 8px; }
+  .state code { font-family:var(--mono); background:var(--alt); padding:2px 6px; border-radius:2px; color:var(--ink); }
+  .state .go { margin-top:14px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="marque">
+    <h1>Ridgeline Freight</h1><span class="sub">load board</span>
+    <span id="picker"></span>
+    <span class="live" id="live"><span class="dot"></span><span id="livetext">reading the board…</span></span>
+  </div>
+  <div class="tiles" id="tiles"></div>
+</header>
+<div id="banner"></div>
+<div class="rail" id="rail"></div>
+<main>
+  <table id="table">
+    <thead><tr>
+      <th style="width:106px">needs</th><th style="width:86px">load&nbsp;#</th><th style="width:150px">customer</th>
+      <th style="width:96px">lane</th><th>what</th><th style="width:170px">driver / carrier</th>
+      <th style="width:92px">stage</th><th class="num" style="width:92px">revenue</th>
+      <th class="num" style="width:72px">waiting</th>
+    </tr></thead>
+    <tbody id="grid"></tbody>
+  </table>
+  <div id="state"></div>
+</main>
+<footer>
+  <span class="count" id="paging">—</span>
+  <button class="act" id="prev">◀ back</button>
+  <button class="act" id="next">more ▶</button>
+  <button class="act" id="sweep">accept the routine ones</button>
+  <span class="flash" id="flash"></span>
+  <span class="keys" id="keys">↑↓ move · enter open · esc close</span>
+  <button class="act" id="wiretoggle" style="margin-left:auto">wire</button>
+</footer>
+<pre id="wire"></pre>
+
+<script>
+'use strict';
+// An ordinary operator client. Every byte on this page came from attention(),
+// portfolio(), work.view(), policy.applicable() and surface.describe(); every
+// action is one verb. No privileged path — the board is not a gateway.
+//
+// Written for one person: the dispatcher at a forty-truck carrier, phone on the
+// headset, board up on the left-hand monitor from 06:00. Non-technical. Four
+// fears, and every decision on this page is answerable to one of them:
+//   1. a tender goes cold while nobody looks at it   → `waiting`, weighted
+//   2. money committed without authority             → the standing rule, on the slip
+//   3. a claim goes quiet                            → recent activity, on the slip
+//   4. losing track of which load is where           → `needs` says what each row wants
+// The protocol's words — deliverable, ref, triage, park, continuation — do not
+// appear on the glass. They live in the wire drawer, for the one operator in
+// ten who wants to know what the software calls things.
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ago = s => s < 90 ? Math.max(0, Math.round(s)) + 's' : s < 5400 ? Math.round(s/60) + 'm' : s < 172800 ? Math.round(s/3600) + 'h' : Math.round(s/86400) + 'd';
+const money = n => n == null ? '' : '$' + Math.round(Number(n)).toLocaleString('en-US');
+const clock = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' }); };
+const isRef = t => /^[A-Z][A-Z0-9]*-\d+$/.test(String(t || ''));
+const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } },
+                set(k, v) { try { localStorage.setItem(k, v); } catch { /* private window: the board still works */ } } };
+const requestKey = () => globalThis.crypto?.randomUUID?.() || `ui-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+async function call(verb, args) {
+  let res;
+  try {
+    const headers = {'content-type':'application/json'};
+    if (!['attention','portfolio','work.view','sessions','session.view','surface.describe','policy.applicable','knowledge.query','work.get'].includes(verb)) headers['idempotency-key'] = requestKey();
+    const signal = globalThis.AbortSignal?.timeout?.(10000);
+    res = await fetch('/v0/' + verb, { method:'POST', headers, body: JSON.stringify(args || {}), ...(signal ? { signal } : {}) });
+  } catch (e) {
+    const err = new Error('the board cannot reach the surface'); err.code = 'OFFLINE'; err.detail = e.message; throw err;
+  }
+  let p;
+  try { p = await res.json(); } catch { const e = new Error('the surface answered with something that is not an answer'); e.code = 'OFFLINE'; throw e; }
+  if (!p.ok) { const e = new Error(p.error.message); e.code = p.error.code; throw e; }
+  return p.result;
+}
+
+// §16's codes are protocol, and a dispatcher never sees one. They are branched
+// on here and said in freight English; the code itself stays visible in small
+// type, because the person they call when it will not clear needs it.
+const TROUBLE = {
+  OFFLINE:              'The board cannot reach the surface. Nothing below is live.',
+  SURFACE_UNREACHABLE:  'The board cannot reach the surface. Nothing below is live.',
+  CONFLICT:         'Someone else has this load right now.',
+  STATE:            'This load has already moved on — the board is out of date.',
+  NOT_FOUND:        'That load is no longer on the board.',
+  FORBIDDEN:        'This board is not allowed to do that.',
+  VALIDATION:       'The surface would not accept that.',
+  SESSION_REQUIRED: 'That is a job for the desk, not the board.',
+  UNAUTHENTICATED:  'This board is not signed in to the surface.',
+  UNKNOWN_VERB:     'This surface does not do that.',
+};
+
+const S = {
+  project:null, describe:null, projects:[], rows:[], total:0, more:false, cursor:null,
+  trail:[{ cursor:null, before:0 }], page:0, limit:25,
+  open:null, hi:-1, detail:{}, item:{}, form:null,
+  lane:'', find:'', busy:false, trouble:null, moved:false, fetchedAt:0, everLoaded:false, railSig:null,
+};
+
+// ---- loading ---------------------------------------------------------------
+// The cursor is an OPAQUE KEYSET TOKEN naming a PLACE in the total order (§15).
+// It is echoed, never constructed, never counted on, never added to — the board
+// that used to do integer arithmetic here was the reason page two threw. Which
+// is also why an action no longer has to bounce back to the head: clearing rows
+// cannot shift a keyed cursor, so the operator keeps their place on page three.
+async function load(opts) {
+  const o = opts || {};
+  if (S.busy) return;
+  // A half-typed reason is the most expensive thing on this page — it is the
+  // sentence that outlives the load. Background polling never touches it.
+  if (o.quiet && S.form) return;
+  S.busy = true;
+  try {
+    if (!S.describe) {
+      S.describe = await call('surface.describe', {});
+      S.projects = S.describe.projects || [];
+      const asked = new URLSearchParams(location.search).get('project');
+      S.project = asked || (S.projects[0] || {}).key || null;
+      renderWire();
+    }
+    if (!S.project) { S.trouble = null; S.everLoaded = true; S.fetchedAt = Date.now(); return finish(); }
+    const at = S.trail[S.page] || { cursor:null, before:0 };
+    const [page, port] = await Promise.all([
+      call('attention', { project: S.project, limit: S.limit, ...(at.cursor ? { cursor: at.cursor } : {}) }),
+      call('portfolio', { project: S.project }),
+    ]);
+    // A slip open on the glass is a decision in progress. Never move the board
+    // under the operator's hand — say that it moved and let them take it.
+    if (S.open && o.quiet && signature(page.rows) !== signature(S.rows)) { S.moved = true; return finish(port); }
+    S.rows = page.rows; S.total = page.total; S.more = page.more; S.cursor = page.cursor; S.moved = false;
+    if (!S.rows.length && S.page > 0) { S.page = 0; S.trail = [{ cursor:null, before:0 }]; S.busy = false; return load({}); }
+    S.trouble = null; S.everLoaded = true; S.fetchedAt = Date.now();
+    finish(port);
+  } catch (e) {
+    // Keep whatever is on the glass — a stale board the operator knows is stale
+    // beats an empty one that reads as "nothing needs you".
+    S.trouble = { code: e.code || 'OFFLINE', message: e.message, at: Date.now() };
+    finish();
+  } finally { S.busy = false; }
+}
+const signature = rows => rows.map(r => r.kind + r.target + r.since).join('|');
+function finish(port) { if (port) S.port = port; render(); }
+
+// ---- what the board knows about a row --------------------------------------
+// A row names itself now: it carries the deliverable's LINKS (§15, D-6) and an
+// `item` — title, kind, urgency (§15, D-7) — so all nine columns render off the
+// queue read and the page costs exactly two calls, `attention` and `portfolio`,
+// whatever its size. The per-row fan-out to work.view this board used to need
+// (`nameRows`) is deleted, not disabled. `S.item` now only ever holds what an
+// opened slip fetched.
+const linksOf = r => r.links || (r.detail && r.detail.proposal && r.detail.proposal.links) || (S.item[r.target] || {}).links || {};
+const one = (r, type) => (linksOf(r)[type] || [])[0];
+function titleOf(r) {
+  const d = r.detail || {};
+  return (r.item && r.item.title) || (d.proposal && d.proposal.title) || d.title || (S.item[r.target] || {}).title || null;
+}
+function kindOf(r) {
+  const d = r.detail || {};
+  return (r.item && r.item.kind) || (d.proposal && d.proposal.kind) || (S.item[r.target] || {}).kind || null;
+}
+function urgencyOf(r) {
+  const d = r.detail || {};
+  return (r.item && r.item.urgency) || (d.proposal && d.proposal.urgency) || (S.item[r.target] || {}).urgency || null;
+}
+const revenueOf = r => (one(r, 'shipment') || {}).revenue_usd;
+
+// ---- what each row is asking, in freight English ---------------------------
+// One column instead of two: the chip says what the row wants, and the slip
+// says what happens if the operator does nothing about it. Not one protocol
+// word among them.
+function needs(r) {
+  const d = r.detail || {};
+  if (r.kind === 'decision') return ['s-call', 'your call'];
+  if (r.kind === 'review') return ['s-signoff', 'sign off'];
+  if (r.kind === 'triage') {
+    if (d.reground) return ['s-yesno', 'out of step'];
+    if (d.awaiting_enrichment) return ['s-roll', 'sent back'];
+    if (d.sendback) return ['s-yesno', 'back to you'];
+    return ['s-yesno', 'accept?'];
+  }
+  if (r.action === 'unpark') return ['s-hold', 'on hold'];
+  if (r.action === 'answer') return ['s-call', 'stopped'];      // parked ON a decision: the load cannot move
+  if (r.action === 'reconcile') return ['s-hold', 'truck moved'];
+  return ['s-roll', 'rolling'];
+}
+function ifNothing(r) {
+  const d = r.detail || {};
+  if (r.kind === 'decision') return 'Nobody can commit this until you answer. The desk keeps working everything the answer does not touch.';
+  if (r.kind === 'review') return 'The work is finished, but the load never comes off the board.';
+  if (r.kind === 'triage') {
+    if (d.reground) return 'The board keeps its own version of what happened.';
+    if (d.awaiting_enrichment) return 'The desk is putting together what you asked for. Nothing needed from you yet.';
+    return 'It stays off the board. Nobody works it.';
+  }
+  if (r.action === 'unpark') return 'It keeps waiting, and the feed that owns the wait will release it when the answer lands. That is often the right answer.';
+  if (r.action === 'answer') return 'This load is stopped. It does not move again until the question is decided.';
+  if (r.action === 'reconcile') return 'The board keeps showing the older story while the truck keeps moving.';
+  return 'Nothing. This row is a fact, not a request.';
+}
+
+// ---- rendering: the head ---------------------------------------------------
+function renderLive() {
+  const el = $('#live'), t = $('#livetext');
+  // The strip in the marque takes the first sentence; the banner underneath
+  // carries the whole of it, and the code, for whoever gets telephoned.
+  if (S.trouble) { el.className = 'live down'; t.textContent = (TROUBLE[S.trouble.code] || 'Something is wrong').split('.')[0]; return; }
+  if (!S.everLoaded) { el.className = 'live stale'; t.textContent = 'reading the board…'; return; }
+  if (S.open) { el.className = 'live stale'; t.textContent = S.moved ? 'the board moved while you were deciding' : 'paused while you decide'; return; }
+  const s = Math.round((Date.now() - S.fetchedAt) / 1000);
+  el.className = 'live'; t.textContent = 'live · checked ' + (s < 2 ? 'just now' : ago(s) + ' ago');
+}
+
+function renderPicker() {
+  const el = $('#picker');
+  if (S.projects.length < 2) { el.innerHTML = ''; return; }
+  el.innerHTML = `<select id="proj" aria-label="board">` + S.projects.map(p =>
+    `<option value="${esc(p.key)}"${p.key === S.project ? ' selected' : ''}>${esc(p.name || p.key)}</option>`).join('') + `</select>`;
+}
+
+function renderTiles() {
+  const p = S.port ? (S.port.find(x => x.key === S.project) || S.port[0]) : null;
+  const z = { working_set:'—', in_flight:[], parked:[], todo:[], review:[] };
+  const q = p || z;
+  const onPage = S.rows.reduce((a, r) => a + (Number(revenueOf(r)) || 0), 0);
+  $('#tiles').innerHTML = [
+    ['', 'on the board', q.working_set],
+    ['you', 'needs you', S.everLoaded ? S.total : '—'],
+    ['money', 'on this page', onPage ? money(onPage) : '—'],
+    ['roll', 'rolling', q.in_flight.length],
+    ['held', 'waiting', q.parked.length],
+    ['', 'to dispatch', q.todo.length],
+    ['', 'to sign off', q.review.length],
+  ].map(([cls, label, n]) => `<div class="tile ${cls}"><b>${esc(n)}</b><span>${label}</span></div>`).join('');
+}
+
+function renderBanner() {
+  const bits = [];
+  if (S.trouble) {
+    bits.push(`<div class="banner bad"><b>${esc(TROUBLE[S.trouble.code] || 'Something went wrong.')}</b>
+      <span>${esc(S.trouble.message)}</span><code>${esc(S.trouble.code)}</code>
+      <span class="sp"><button class="chip" data-nav="retry">try again</button></span></div>`);
+  }
+  if (S.moved) {
+    bits.push(`<div class="banner note"><b>New rows arrived while you had a slip open.</b>
+      <span>The board below is a moment old — nothing you do here is lost.</span>
+      <span class="sp"><button class="chip" data-nav="refresh">take the new board</button></span></div>`);
+  }
+  if (S.describe && S.describe.authority && S.describe.authority.class !== 'operator') {
+    bits.push(`<div class="banner note"><b>Read-only.</b>
+      <span>This board is connected without the authority to decide anything. Answers and sign-offs will be refused.</span></div>`);
+  }
+  $('#banner').innerHTML = bits.join('');
+}
+
+function renderWire() {
+  const d = S.describe, p = (d.projects || [])[0] || {}, v = p.vocabulary || {};
+  $('#wire').innerHTML = `<span class="why">What the software calls things. Nobody needs this to work the board — it is here for the day someone asks what the board is actually talking to.</span>` + esc(
+    `surface   ${d.surface.name} ${d.surface.version} · protocol ${d.protocol.version} (supports ${(d.protocol.supported||[]).join(', ')})\n` +
+    `this board ${d.authority.class}${(d.authority.grants||[]).length ? ' + grants ' + JSON.stringify(d.authority.grants) : ''}\n` +
+    `ordering  ${JSON.stringify(p.rank_tiebreak)}\n` +
+    Object.entries(v).map(([k, xs]) => `${k.padEnd(10)}${(xs || []).join(' · ')}`).join('\n'));
+}
+
+// ---- rendering: the rail ---------------------------------------------------
+function lanes() { return [...new Set(S.rows.map(r => (one(r, 'lane') || {}).id).filter(Boolean))].sort(); }
+// Rebuilt only when its own contents change — otherwise a poll every six
+// seconds would yank the caret out of the filter box mid-word.
+function renderRail() {
+  const ls = lanes(), dens = store.get('density', 'board');
+  const sig = [ls.join(','), S.lane, S.limit, dens].join('|');
+  if (sig === S.railSig) return;
+  S.railSig = sig;
+  const chips = ['', ...ls].map(l =>
+    `<button class="chip ${S.lane === l ? 'on' : ''}" data-lane="${esc(l)}">${l ? esc(l) : 'all lanes'}</button>`).join('');
+  $('#rail').innerHTML = `<span class="lbl">lane</span>${chips}` +
+    `<span class="right">` +
+    `<input class="find" id="find" type="text" placeholder="filter this page — customer, lane, load #" value="${esc(S.find)}">` +
+    `<span class="lbl">rows</span>` +
+    [25, 50, 100].map(n => `<button class="chip ${S.limit === n ? 'on' : ''}" data-size="${n}">${n}</button>`).join('') +
+    `<span class="lbl">size</span>` +
+    `<button class="chip ${dens === 'board' ? 'on' : ''}" data-density="board">board</button>` +
+    `<button class="chip ${dens === 'desk' ? 'on' : ''}" data-density="desk">desk</button>` +
+    `</span>`;
+  const f = $('#find'); if (f) f.value = S.find;
+}
+
+// ---- rendering: the grid ---------------------------------------------------
+// quote → booking → invoice, rendered as the track it is. `depends_on` says
+// what already happened; the kind says where we are.
+function stage(r) {
+  const k = kindOf(r);
+  if (!k) return '';
+  const chain = ['quote', 'booking', 'invoice'];
+  const at = chain.indexOf(k);
+  if (at < 0) return `<span class="track">${esc(k)}</span>`;
+  return `<span class="track" title="${esc(k)} — quote, then booking, then invoice">` + chain.map((c, i) =>
+    i < at ? `<i>${c[0].toUpperCase()}</i>` : i === at ? `<b>${c[0].toUpperCase()}</b>` : c[0].toUpperCase()).join('→') + '</span>';
+}
+const ageClass = s => s > 86400 ? 'a4' : s > 28800 ? 'a3' : s > 3600 ? 'a2' : 'a1';
+
+// A wait has a subject and an owner, and the operator wants both — "is this
+// claim quiet because nobody is looking, or because Arrow has not written
+// back?" The trigger already carries the subject; which feed owns each prefix
+// is Ridgeline's own arrangement (types/registry.md), so it is said here.
+const FEEDS = { 'edi214': 'the EDI feed, when the 214 arrives', 'claim': 'the customer portal, when the document lands',
+                'customer': 'the mailbox, when they reply', 'carrier': 'the carrier feed' };
+function waitOn(park) {
+  const t = String((park && park.trigger) || '');
+  if (park && park.cause === 'decision') return { what: 'a decision on the question above', who: 'you' };
+  const m = /^([a-z0-9]+):(.*)$/i.exec(t);
+  if (!m) return { what: esc(t) || 'something outside the desk', who: null };
+  return { what: `<b>${esc(m[1])} ${esc(m[2].trim().split(/\s+/)[0] || '')}</b> ${esc(m[2].trim().split(/\s+/).slice(1).join(' '))}`,
+           who: FEEDS[m[1].toLowerCase()] || null };
+}
+
+// A link entry is an envelope, so the board renders what it recognises and
+// falls back to key=value for whatever a future feed decides to add (§19).
+function entry(e) {
+  const bits = [];
+  if (e.tender) bits.push('tender ' + e.tender);
+  if (e.revenue_usd != null) bits.push(money(e.revenue_usd));
+  if (e.miles != null) bits.push(e.miles + ' mi');
+  if (e.weight_lb != null) bits.push(Number(e.weight_lb).toLocaleString('en-US') + ' lb');
+  if (e.position) bits.push(e.position);
+  if (e.note) bits.push(e.note);
+  if (e.observed_at) bits.push('reported ' + clock(e.observed_at));
+  const known = ['tender','revenue_usd','miles','weight_lb','position','note','observed_at','driver'];
+  for (const [k, v] of Object.entries(e)) {
+    if (known.includes(k)) continue;
+    bits.push(`${k} ${typeof v === 'object' ? JSON.stringify(v) : v}`);
+  }
+  return bits.join(' · ');
+}
+
+function row(r, n, zebra, dup) {
+  const [cls, label] = needs(r);
+  const cust = one(r, 'customer'), lane = one(r, 'lane'), drv = one(r, 'driver'), car = one(r, 'carrier');
+  const hot = urgencyOf(r) === 'blocking';
+  const what = titleOf(r) || r.reason;
+  const rev = revenueOf(r);
+  const sel = S.open === r.target;
+  return `<tr class="load ${zebra ? 'z' : ''} ${sel ? 'sel' : ''} ${S.hi === n ? 'hi' : ''}" data-ref="${esc(r.target)}"
+      aria-expanded="${sel}" title="${esc(what)}">
+    <td><span class="status ${cls}">${label}</span></td>
+    <td class="ref${dup ? ' dup' : ''}"${dup ? ' title="another row about the load above"' : ''}>${dup ? '↳ ' : ''}${esc(r.target)}</td>
+    <td class="cust">${cust ? `<b>${esc(cust.name)}</b>${cust.unknown ? ' <i>new</i>' : ''}` : '<span style="color:var(--faint)">—</span>'}</td>
+    <td class="lane">${lane ? esc(lane.id) : ''}</td>
+    <td class="title ${hot ? 'hot' : ''}">${hot ? '▲ ' : ''}${esc(what)}</td>
+    <td class="who">${esc([drv && drv.name, car && car.name].filter(Boolean).join(' · '))}</td>
+    <td>${stage(r)}</td>
+    <td class="num">${rev == null ? '' : money(rev)}</td>
+    <td class="age ${ageClass(r.elapsed_s)}" title="waiting since ${esc(clock(r.since))}">${ago(r.elapsed_s)}</td>
+  </tr>` + (sel ? slip(r) : '');
+}
+
+// ---- rendering: the dispatch slip ------------------------------------------
+function slip(r) {
+  const d = r.detail || {};
+  const L = linksOf(r);
+  const rev = revenueOf(r);
+  const title = titleOf(r) || r.target;
+  const cust = one(r, 'customer'), lane = one(r, 'lane');
+  const sub = [cust && cust.name, lane && lane.id].filter(Boolean).join(' · ');
+
+  let body = `<div class="sliphead"><h3>${esc(title)}</h3>${sub ? `<span class="track">${esc(sub)}</span>` : ''}
+    ${rev != null ? `<span class="big">${money(rev)}</span>` : ''}</div>`;
+  const intent = (d.proposal && d.proposal.intent) || d.intent || (S.item[r.target] || {}).intent;
+  if (intent) body += `<div class="intent">${esc(intent)}</div>`;
+
+  if (r.kind === 'decision' && d.body) {
+    body += `<div class="ask">${esc(d.body.prompt)}</div>`;
+    body += (d.body.options || []).map(o =>
+      `<button class="opt" data-cmd="answer:${esc(d.question)}:${esc(o.id)}" data-ref="${esc(r.target)}">
+        <span class="id">${esc(o.id)}</span><span class="lab">${esc(o.label)}</span>
+        ${o.tradeoff ? `<span class="trade">${esc(o.tradeoff)}</span>` : ''}
+        ${(o.evidence || []).length ? `<ul>${o.evidence.map(e => `<li>${esc(e.claim)}</li>`).join('')}</ul>` : ''}
+      </button>`).join('');
+    // Fear number two, answered where the money is: the rule the operator wrote
+    // is on the glass at the moment they are being asked to spend against it.
+    const rules = (S.detail[r.target] || {}).policies;
+    const auth = (rules || []).filter(p => p.type === 'authority');
+    if (auth.length) body += auth.map(p => `<div class="rule"><span class="lbl">your standing rule</span>${esc(p.text)}</div>`).join('');
+  } else if (r.kind === 'triage' && d.reground) {
+    body += `<div class="ask">The desk says the board is out of step with what really happened.</div>
+      <dl class="kv"><dt>it claims</dt><dd>${esc(JSON.stringify(d.payload))}</dd></dl>`;
+  } else if (r.kind === 'triage') {
+    if (d.sendback) body += `<div class="ev">you sent this back: ${esc(d.sendback.reason)}</div>`;
+    (d.responses || []).forEach(e => { body += `<div class="ev">the desk answered: ${esc(JSON.stringify(e.body).slice(0, 200))}</div>`; });
+    body += ((L.evidence) || []).map(e => `<div class="ev">· ${esc(e.claim)}</div>`).join('');
+  } else if (r.kind === 'review' && d.completion) {
+    const c = d.completion;
+    body += `<dl class="kv"><dt>what happened</dt><dd>${esc(c.outcome)}</dd>` +
+      (c.now_true || []).map(t => `<dt>now true</dt><dd>${esc(t)}</dd>`).join('') +
+      (c.friction || []).map(t => `<dt>went badly</dt><dd>${esc(t)}</dd>`).join('') +
+      (c.rejected || []).map(t => `<dt>not done</dt><dd>${esc(t.what)} — ${esc(t.reason)}</dd>`).join('') +
+      (c.knowledge_edits || []).map(t => `<dt>page updated</dt><dd><code>${esc(t)}</code></dd>`).join('') + `</dl>`;
+  } else if (d.park) {
+    const h = d.park.handoff || {};
+    const w = waitOn(d.park);
+    body += `<dl class="kv"><dt>waiting on</dt><dd>${w.what}</dd>
+      ${w.who ? `<dt>who releases it</dt><dd>${esc(w.who)}</dd>` : ''}
+      <dt>why</dt><dd>${esc(h.why)}</dd><dt>where it got to</dt><dd>${esc(h.state_so_far)}</dd>
+      <dt>pick up at</dt><dd>${esc(h.resume_point)}</dd><dt>when it comes back</dt><dd>${esc(h.on_release)}</dd></dl>`;
+  } else if (d.link_type) {
+    body += `<dl class="kv"><dt>${esc(d.link_type)} reports</dt><dd>${esc(entry(d.entry || {}))}</dd>
+      <dt>board last heard</dt><dd>${d.last_event_at ? esc(clock(d.last_event_at)) : 'nothing yet'}</dd></dl>`;
+  } else {
+    const it = S.item[r.target] || {};
+    body += `<div class="intent">${esc(r.reason)}</div>` +
+      (it.status_line ? `<dl class="kv"><dt>where it is</dt><dd>${esc(it.status_line)}</dd>
+        <dt>next</dt><dd>${esc(it.next_checkpoint || '—')}</dd></dl>` : '');
+  }
+
+  body += `<div class="nothing"><b>If you do nothing:</b> ${esc(ifNothing(r))}</div>`;
+
+  // The load's own facts, and the paper trail as links where there is a link.
+  const pages = ['customer', 'lane', 'driver', 'carrier'].flatMap(k => (L[k] || []).map(e =>
+    `<dt>${k}</dt><dd>${esc(e.name)}${e.unknown ? ' <span class="track">no page yet — writing it is part of the job</span>'
+      : e.page ? ` <span class="track">${esc(e.page)}</span>` : ''}</dd>`)).join('');
+  // A document entry is an envelope written by whichever feed found the paper,
+  // so its url is not trusted to be a url: only http(s) becomes a link.
+  const docs = (L.documents || []).map(x => /^https?:\/\//i.test(String(x.url || ''))
+    ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.name)}</a>` : esc(x.name)).join(' · ');
+  const refs = (L.references || []).map(x => esc(x.ref || x.policy || JSON.stringify(x))).join(' · ');
+  if (pages || docs || L.shipment || L.tracking || refs) {
+    body += `<dl class="kv">${pages}
+      ${L.shipment ? `<dt>the load</dt><dd>${esc(entry(L.shipment[0]))}</dd>` : ''}
+      ${L.tracking ? `<dt>last reported</dt><dd>${esc(entry(L.tracking[0]))}</dd>` : ''}
+      ${docs ? `<dt>paperwork</dt><dd>${docs}</dd>` : ''}
+      ${refs ? `<dt>came from</dt><dd>${refs}</dd>` : ''}</dl>`;
+  }
+
+  body += activity(r);
+  if (S.form && S.form.ref === r.target) body += formFor(r);
+
+  return `<tr class="slip"><td colspan="9"><div class="slipbody">
+    <div class="slipmain">${body}</div>
+    <div class="slipside">${actions(r)}</div>
+  </div></td></tr>`;
+}
+
+// Fear number three: a claim goes quiet and nobody notices. The worklog is the
+// only place that shows silence, so it is on the slip, newest last, six deep.
+//
+// Six events is now six events on the wire: work.view takes `order: 'newest'`
+// (§15, D-8), which picks the END a bounded worklog comes from while leaving
+// the page itself chronological. This used to read two hundred and keep six.
+function activity(r) {
+  if (!isRef(r.target)) return '';
+  const det = S.detail[r.target];
+  if (!det) return `<div class="log"><span class="lbl">recent activity</span><div class="line"><span class="quiet">reading…</span></div></div>`;
+  const log = (det.worklog || []).slice(-6);
+  if (!log.length) return `<div class="log"><span class="lbl">recent activity</span>
+    <div class="line"><span></span><span></span><span class="quiet">Nothing has been written on this one yet.</span></div></div>`;
+  const said = { progress:'progress', note:'note', question:'asked', answer:'you said', rejection:'turned down',
+                 unparked:'came back', completed:'finished' };
+  return `<div class="log"><span class="lbl">recent activity</span>` + log.map(e => {
+    const b = e.body || {};
+    const text = b.text || b.prompt || b.reason || b.outcome || (b.note ? String(b.note) : '') || JSON.stringify(b).slice(0, 180);
+    return `<div class="line"><span class="t">${esc(clock(e.at))}</span><span class="k">${esc(said[e.kind] || e.kind)}</span>
+      <span>${esc(text)}</span></div>`;
+  }).join('') + `</div>`;
+}
+
+function actions(r) {
+  const d = r.detail || {};
+  const out = [];
+  const btn = (label, cls, cmd) => `<button class="act ${cls}" data-cmd="${esc(cmd)}" data-ref="${esc(r.target)}">${esc(label)}</button>`;
+  if (r.kind === 'decision') {
+    out.push(`<span class="lbl">pick an option above, or</span>`);
+    out.push(btn('Answer in my own words…', '', `ask:words:${d.question}`));
+    out.push(btn('None of these — send it back…', '', `ask:rejectq:${d.question}`));
+  } else if (r.kind === 'triage') {
+    out.push(`<span class="lbl">what happens to it</span>`);
+    out.push(btn(d.reground ? 'Accept what the desk says' : 'Put it on the board', 'go', 'accept'));
+    out.push(btn('Turn it down…', '', 'ask:reject'));
+  } else if (r.kind === 'review') {
+    out.push(`<span class="lbl">what happens to it</span>`);
+    out.push(btn('Sign it off — it is done', 'go', 'accept'));
+    out.push(btn('Send it back…', '', 'ask:reject'));
+  } else {
+    out.push(`<span class="lbl">what you can do</span>`);
+    if (r.action === 'unpark') out.push(btn('Stop waiting — put it back on the board', 'go', 'unpark'));
+    if (r.action === 'release') out.push(btn('Take it back from the desk…', '', 'ask:release'));
+  }
+  if (isRef(r.target)) {
+    out.push('<hr>');
+    const hot = urgencyOf(r) === 'blocking';
+    out.push(`<button class="act" data-cmd="hot" data-ref="${esc(r.target)}"${hot ? ' disabled' : ''}>${hot ? 'Already hot — it moves first' : 'Mark it hot'}</button>`);
+    out.push(btn('Back to routine', '', 'cool'));
+    out.push(btn('Add a note…', '', 'ask:note'));
+  }
+  return out.join('');
+}
+
+// EVERY sentence the operator writes is written here, in the slip, next to the
+// load it is about. The board used to raise a browser prompt for this and — for
+// a rejection — ask the dispatcher to TYPE the word "record-only". A protocol
+// enum in a JS prompt was the least safe pixel on the page: no gloss, no way to
+// say "this closes it for good", and a typo went to the surface as vocabulary.
+// The choices now come from what the surface publishes (§9), unknown ones are
+// offered untranslated rather than hidden (§19), and the closing one is marked.
+const GLOSS = {
+  'record-only':   'Closed for good. We are not doing this — the reason is kept so nobody asks again.',
+  'requote':       'The number was wrong, not the work. Price it again.',
+  'rebook':        'The commitment stands, the carrier does not. Find another truck.',
+  'needs-docs':    'Nothing moves until the paperwork lands.',
+  'escalate-human':'Past the desk. Someone here has to make the call.',
+  'rework':        'Send it back to be done properly.',
+};
+function continuations() {
+  const p = (S.describe && (S.describe.projects || []).find(x => x.key === S.project)) || {};
+  return (p.vocabulary || {}).continuations || ['record-only'];
+}
+
+// One form, five jobs. `mode` decides whether it also asks "and then what".
+const FORMS = {
+  reject:  { head: 'Turn it down — why?', hint: 'The reason is kept on the record for good. Write it for whoever reads this in a year.', go: 'Turn it down', cont: true },
+  sendback:{ head: 'Send it back — what needs doing?', hint: 'What is wrong with it. The desk reads this and does it again.', go: 'Send it back', cont: true },
+  rejectq: { head: 'None of these will do — why?', hint: 'The desk gets this and asks again with better options.', go: 'Send the question back', cont: true },
+  words:   { head: 'Answer in your own words', hint: 'The desk reads this and acts on it. Be as plain as you would be on the phone.', go: 'Send the answer', cont: false },
+  release: { head: 'Take it back from the desk', hint: 'Say why, so whoever picks it up next knows what happened.', go: 'Take it back', cont: false },
+  note:    { head: 'Add a note', hint: 'Context for whoever works it next. A note changes nothing on its own — it just rides along.', go: 'Add the note', cont: false },
+};
+function formFor(r) {
+  const f = S.form, spec = FORMS[f.mode];
+  const list = f.mode === 'sendback' ? [...new Set(['rework', ...continuations()])] : continuations();
+  return `<div class="form">
+    <h4>${esc(spec.head)}</h4>
+    <textarea id="ftext" placeholder="${esc(spec.hint)}">${esc(f.text || '')}</textarea>
+    ${spec.cont ? `<div class="opts"><span class="lbl">and then what</span>
+      ${list.map(c => `<label class="pick ${c === 'record-only' ? 'final' : ''}">
+        <input type="radio" name="cont" value="${esc(c)}"${f.cont === c ? ' checked' : ''}>
+        <span><b>${esc(GLOSS[c] ? GLOSS[c].replace(/\..*$/s, '') : c)}</b><span class="g">${esc(GLOSS[c] || "this desk's own word — " + c)}</span></span>
+      </label>`).join('')}</div>` : ''}
+    <div class="go">
+      <button class="act go" data-cmd="form:submit" data-ref="${esc(r.target)}">${esc(spec.go)}</button>
+      <button class="act" data-cmd="form:cancel" data-ref="${esc(r.target)}">Cancel</button>
+    </div>
+  </div>`;
+}
+
+// ---- rendering: putting it on the glass ------------------------------------
+function visible() {
+  const q = S.find.trim().toLowerCase();
+  return S.rows.map((r, i) => [r, i]).filter(([r]) => {
+    if (S.lane && (one(r, 'lane') || {}).id !== S.lane) return false;
+    if (!q) return true;
+    const hay = [r.target, titleOf(r), r.reason, (one(r, 'customer') || {}).name, (one(r, 'lane') || {}).id,
+      (one(r, 'driver') || {}).name, (one(r, 'carrier') || {}).name].filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(q);
+  });
+}
+
+// Loading, broken, first-run, genuinely clear, and filtered-to-nothing are five
+// different things, and a board that says "the board is clear" for all five is
+// lying in the one case that costs money.
+function renderState(shown) {
+  const el = $('#state'), tbl = $('#table');
+  const show = html => { el.innerHTML = html; el.style.display = ''; tbl.style.display = shown ? '' : 'none'; };
+  if (!S.everLoaded && !S.trouble) return show(`<div class="state"><h2>reading the board</h2><p>One moment.</p></div>`);
+  if (S.trouble && !S.rows.length) return show(`<div class="state"><h2>the board is not connected</h2>
+    <p>${esc(TROUBLE[S.trouble.code] || 'Something went wrong.')} Nothing is loaded, so <b>this is not an empty board</b> — there may be work waiting on the other side of it.</p>
+    <p><code>${esc(S.trouble.code)}: ${esc(S.trouble.message)}</code></p>
+    <div class="go"><button class="chip" data-nav="retry">try again</button></div></div>`);
+  if (!S.project) return show(`<div class="state"><h2>no board yet</h2>
+    <p>The surface this board is pointed at has no project on it. Start Ridgeline's day and this fills up:</p>
+    <p><code>OWP_URL=… npm run seed 60</code></p>
+    <div class="go"><button class="chip" data-nav="retry">check again</button></div></div>`);
+  if (shown) { el.innerHTML = ''; el.style.display = 'none'; tbl.style.display = ''; return; }
+  if (S.lane || S.find) return show(`<div class="state"><h2>nothing on this page matches</h2>
+    <p>${S.total} row${S.total === 1 ? '' : 's'} need you in total — this page just has none of them.</p>
+    <div class="go"><button class="chip" data-nav="clearfilter">clear the filter</button></div></div>`);
+  const q = (S.port ? (S.port.find(x => x.key === S.project) || S.port[0]) : null) || { in_flight:[], parked:[], todo:[] };
+  return show(`<div class="state"><h2>nothing needs you</h2>
+    <p>The board is clear. ${q.in_flight.length} rolling, ${q.parked.length} waiting on somebody else, ${q.todo.length} still to dispatch.</p></div>`);
+}
+
+// The grid and the footer. Split out from render() so that typing in the filter
+// box repaints the rows without rebuilding the box the caret is sitting in.
+function renderRows() {
+  const rows = visible().map(([r]) => r);
+  if (S.hi >= rows.length) S.hi = rows.length - 1;
+  // One load can want two different things at once — a decision AND a note
+  // that it is still rolling. Both rows are real and both are counted, so
+  // neither is dropped; the second one just stops reading as a second load.
+  const met = new Set();
+  $('#grid').innerHTML = rows.map((r, n) => {
+    const dup = met.has(r.target); met.add(r.target);
+    return row(r, n, n % 2 === 1, dup);
+  }).join('');
+  renderState(rows.length);
+  const at = S.trail[S.page] || { before: 0 };
+  const from = S.total && S.rows.length ? at.before + 1 : 0;
+  $('#paging').textContent = S.everLoaded
+    ? `${from}–${at.before + S.rows.length} of ${S.total} waiting` + (S.lane || S.find ? ` · ${rows.length} shown here` : '')
+    : '—';
+  $('#prev').disabled = S.page === 0;
+  $('#next').disabled = !S.more;
+  $('#sweep').disabled = !S.rows.some(r => r.kind === 'triage');
+}
+
+function render() {
+  renderPicker(); renderTiles(); renderBanner(); renderRail(); renderLive(); renderRows();
+}
+
+// ---- actions ---------------------------------------------------------------
+const flash = m => { $('#flash').textContent = m; clearTimeout(window._f); window._f = setTimeout(() => { $('#flash').textContent = ''; }, 6000); };
+
+async function run(fn, ok) {
+  try {
+    await fn();
+    flash(ok);
+    S.open = null; S.form = null;
+    S.detail = {}; S.item = {};              // the item just changed; do not render yesterday's copy
+    // A keyed cursor survives the clearing (§15), so the operator keeps their
+    // page instead of being thrown back to the head after every decision.
+    await load({});
+  } catch (e) {
+    S.trouble = { code: e.code || 'OFFLINE', message: e.message, at: Date.now() };
+    render();
+  }
+}
+
+async function openSlip(ref) {
+  S.open = ref; S.form = null;
+  const at = visible().findIndex(([r]) => r.target === ref);
+  if (at >= 0) S.hi = at;
+  render();
+  if (!isRef(ref) || S.detail[ref]) return;
+  try {
+    const [view, policies] = await Promise.all([
+      call('work.view', { ref, limit: 6, order: 'newest' }),
+      call('policy.applicable', { ref }).catch(() => []),
+    ]);
+    S.item[ref] = view.deliverable;
+    S.detail[ref] = { worklog: view.worklog || [], policies };
+  } catch { S.detail[ref] = { worklog: [], policies: [] }; }
+  if (S.open === ref) render();
+}
+
+async function act(cmd, ref) {
+  const r = S.rows.find(x => x.target === ref); if (!r) return;
+  const d = r.detail || {};
+
+  // opening / closing the one form
+  if (cmd === 'form:cancel') { S.form = null; return render(); }
+  if (cmd.startsWith('ask:')) {
+    const [, mode, arg] = cmd.split(':');
+    const m = mode === 'reject' && r.kind === 'review' ? 'sendback' : mode;
+    S.form = { ref, mode: m, text: '', event: arg ? Number(arg) : null,
+      cont: m === 'sendback' ? 'rework' : m === 'rejectq' ? 'requote' : 'record-only' };
+    render();
+    const t = $('#ftext'); if (t) t.focus();
+    return;
+  }
+  if (cmd === 'form:submit') {
+    const f = S.form; if (!f) return;
+    const text = (($('#ftext') || {}).value || '').trim();
+    const picked = document.querySelector('input[name=cont]:checked');
+    const cont = picked ? picked.value : f.cont;
+    if (!text) { flash('Say why first — the sentence is the part worth keeping.'); const t = $('#ftext'); if (t) t.focus(); return; }
+    if (f.mode === 'reject')   return run(() => call('triage', { target: ref, decision: 'reject', reason: text, continuation: cont }), ref + ' turned down');
+    if (f.mode === 'sendback') return run(() => call('triage', { target: ref, decision: 'reject', reason: text, continuation: cont }), ref + ' sent back');
+    if (f.mode === 'rejectq')  return run(() => call('reject', { ref, reason: text, continuation: cont, event: f.event }), ref + ' — question sent back');
+    if (f.mode === 'words')    return run(() => call('answer', { ref, question: f.event, choice: 'other', text }), ref + ' answered');
+    if (f.mode === 'release')  return run(() => call('work.release', { ref, note: text }), ref + ' is free');
+    if (f.mode === 'note')     return run(() => call('event.append', { ref, kind: 'note', body: { text } }), 'noted on ' + ref);
+    return;
+  }
+
+  // the one-press verbs
+  if (cmd === 'accept') return run(() => call('triage', { target: ref, decision: 'accept' }),
+    r.kind === 'review' ? ref + ' signed off' : ref + ' is on the board');
+  if (cmd.startsWith('answer:')) {
+    const [, q, id] = cmd.split(':');
+    return run(() => call('answer', { ref, question: Number(q), choice: id }), ref + ' answered — ' + id);
+  }
+  if (cmd === 'unpark') return run(() => call('work.unpark', { ref, note: 'released from the board' }), ref + ' is back on the board');
+  if (cmd === 'hot') return run(() => call('work.reprioritize', { ref, urgency: 'blocking' }), ref + ' is hot — it moves first');
+  if (cmd === 'cool') return run(() => call('work.reprioritize', { ref, urgency: 'routine' }), ref + ' is routine again');
+}
+
+// A dispatcher clears a page, not a card. Every row is still its own verb call
+// and its own audited decision — this is one gesture, not one transaction, so
+// it is counted honestly and a failure halfway through is reported by name.
+async function sweep() {
+  const rows = visible().map(([r]) => r)
+    .filter(r => r.kind === 'triage' && !(r.detail || {}).reground && ((r.detail || {}).proposal || {}).urgency !== 'blocking');
+  if (!rows.length) return flash('Nothing routine on this page — every one of these wants a look.');
+  const total = rows.reduce((a, r) => a + (Number(revenueOf(r)) || 0), 0);
+  if (!confirm(`Put ${rows.length} routine load${rows.length === 1 ? '' : 's'} on the board`
+    + (total ? `, worth ${money(total)}` : '') + `?\n\nHot ones are left for you. Each one is booked separately, and you can still turn any of them down afterwards.`)) return;
+  const done = [], failed = [];
+  for (const r of rows) {
+    try { await call('triage', { target: r.target, decision: 'accept' }); done.push(r.target); }
+    catch (e) { failed.push(r.target + ' (' + (e.code || 'failed') + ')'); }
+  }
+  S.open = null; S.form = null;
+  if (failed.length) S.trouble = { code:'CONFLICT', message: `${done.length} went on the board; ${failed.length} did not: ${failed.join(', ')}`, at: Date.now() };
+  else flash(`${done.length} on the board`);
+  await load({});
+}
+
+// ---- input -----------------------------------------------------------------
+function setDensity(d) { document.documentElement.className = d === 'desk' ? 'desk' : ''; store.set('density', d); }
+setDensity(store.get('density', 'board'));
+
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('button');
+  if (b && b.dataset.cmd) { ev.preventDefault(); return act(b.dataset.cmd, b.dataset.ref); }
+  if (b && b.dataset.lane !== undefined) { S.lane = b.dataset.lane; S.open = null; return render(); }
+  if (b && b.dataset.size) { S.limit = Number(b.dataset.size); S.page = 0; S.trail = [{ cursor:null, before:0 }]; return load({}); }
+  if (b && b.dataset.density) { setDensity(b.dataset.density); return render(); }
+  if (b && b.dataset.nav === 'retry') { S.trouble = null; return load({}); }
+  if (b && b.dataset.nav === 'refresh') { S.open = null; S.form = null; S.moved = false; return load({}); }
+  if (b && b.dataset.nav === 'clearfilter') { S.lane = ''; S.find = ''; return render(); }
+  if (b && b.id === 'next') return pageForward();
+  if (b && b.id === 'prev') return pageBack();
+  if (b && b.id === 'sweep') return sweep();
+  if (b && b.id === 'wiretoggle') { const w = $('#wire'); w.style.display = w.style.display === 'block' ? 'none' : 'block'; return; }
+  if (ev.target.closest('.slip')) return;                      // clicks inside a slip stay inside it
+  const tr = ev.target.closest('tr.load');
+  if (tr) {
+    const ref = tr.dataset.ref;
+    S.hi = visible().findIndex(([r]) => r.target === ref);
+    return S.open === ref ? (S.open = null, S.form = null, render()) : openSlip(ref);
+  }
+});
+document.addEventListener('input', ev => {
+  // Only the rows repaint — the rail (and the caret in it) is left alone.
+  if (ev.target.id === 'find') { S.find = ev.target.value; S.open = null; S.hi = -1; return renderRows(); }
+  if (ev.target.id === 'ftext' && S.form) S.form.text = ev.target.value;
+});
+document.addEventListener('change', ev => {
+  if (ev.target.id === 'proj') { S.project = ev.target.value; S.page = 0; S.trail = [{ cursor:null, before:0 }]; S.open = null; load({}); }
+  if (ev.target.name === 'cont' && S.form) S.form.cont = ev.target.value;
+});
+
+// Row movement with the arrows, the way a grid has always worked, and nothing
+// else. Deliberately NOT a keyboard-driven interface — that is the estate
+// board's character, not this one. Moving the highlight costs no reads; opening
+// a slip is the deliberate act that goes and fetches the load's history.
+document.addEventListener('keydown', e => {
+  const t = e.target;
+  if (t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) { if (e.key === 'Escape') t.blur(); return; }
+  const rows = visible().map(([r]) => r);
+  if (e.key === 'Escape') { if (S.form) { S.form = null; return render(); } if (S.open) { S.open = null; return render(); } return; }
+  if (e.key === 'ArrowDown') { e.preventDefault(); S.hi = Math.min(rows.length - 1, S.hi + 1); return renderRows(); }
+  if (e.key === 'ArrowUp') { e.preventDefault(); S.hi = Math.max(0, S.hi - 1); return renderRows(); }
+  if (e.key === 'Enter') {
+    const r = rows[S.hi]; if (!r) return;
+    e.preventDefault();
+    if (S.open === r.target) { S.open = null; S.form = null; return render(); }
+    return openSlip(r.target);
+  }
+});
+
+function pageForward() {
+  if (!S.more) return;
+  const at = S.trail[S.page];
+  S.trail = S.trail.slice(0, S.page + 1);
+  S.trail.push({ cursor: S.cursor, before: at.before + S.rows.length });
+  S.page++; S.open = null; S.form = null; load({});
+}
+function pageBack() { if (S.page === 0) return; S.page--; S.open = null; S.form = null; load({}); }
+
+load({});
+setInterval(() => { if (!document.hidden) load({ quiet: true }); }, 6000);
+setInterval(renderLive, 1000);                                  // "checked 12s ago" has to keep counting
+</script>
+</body>
+</html>

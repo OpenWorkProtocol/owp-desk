@@ -1,0 +1,7 @@
+{
+  "name": "owp-desk",
+  "version": "0.1.0",
+  "description": "Run freight back-office sessions under OWP.",
+  "author": { "name": "Open Work Protocol" },
+  "skills": "./skills/"
+}

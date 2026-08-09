@@ -1,0 +1,1194 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>owp-code · fleet console</title>
+<style>
+  :root {
+    --bg:#10141d; --surface:#171c28; --surface-2:#1e2432; --screen:#0b0e15;
+    --text:#e8e9ee; --muted:#8b93a7; --faint:#5a6178; --rule:#262d3d;
+    --amber:#e0a458; --amber-soft:#2c2415; --teal:#4fb3a9; --teal-soft:#12262a;
+    --danger:#d97066; --danger-soft:rgba(217,112,102,.14);
+    --ok:#6fae7f; --ok-soft:rgba(111,174,127,.14);
+    --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f7f6f2; --surface:#fff; --surface-2:#f0eee8; --screen:#ece9e2;
+      --text:#1d212b; --muted:#667085; --faint:#98a0b3; --rule:#e2e0da;
+      --amber:#a06f24; --amber-soft:#f3ead7; --teal:#2e7d74; --teal-soft:#e2efed;
+      --danger:#b3554c; --danger-soft:rgba(179,85,76,.12);
+      --ok:#4a7d58; --ok-soft:rgba(74,125,88,.13); }
+  }
+  * { box-sizing:border-box; margin:0; }
+  body { background:var(--bg); color:var(--text); font-family:var(--sans);
+    font-size:15.5px; line-height:1.6; -webkit-font-smoothing:antialiased; }
+  .wrap { max-width:1020px; margin:0 auto;
+    padding:0 18px calc(78px + env(safe-area-inset-bottom)); }
+  :focus-visible { outline:2px solid var(--amber); outline-offset:2px; border-radius:4px; }
+
+  header.top { display:flex; align-items:center; gap:14px; padding:16px 0 12px;
+    border-bottom:1px solid var(--rule); flex-wrap:wrap; }
+  .brand { font-family:var(--serif); font-size:1.25rem; white-space:nowrap; }
+  .brand b { color:var(--amber); font-weight:600; }
+  .brand span { color:var(--muted); font-size:.95rem; }
+  nav.tabs { display:flex; gap:6px; margin-left:auto; }
+  nav.tabs button { font-family:var(--mono); font-size:12px; letter-spacing:.08em;
+    text-transform:uppercase; background:transparent; color:var(--muted);
+    border:1px solid var(--rule); border-radius:6px; padding:9px 14px; cursor:pointer;
+    min-height:40px; display:flex; align-items:center; gap:7px; }
+  nav.tabs button.active { color:var(--amber); border-color:var(--amber); background:var(--amber-soft); }
+  nav.tabs .badge { font-size:11px; letter-spacing:0; background:var(--amber);
+    color:#171308; border-radius:9px; padding:0 6px; font-weight:700; min-width:18px; text-align:center; }
+  nav.tabs button.active .badge { background:var(--amber); }
+  nav.tabs .badge.zero { background:var(--rule); color:var(--muted); }
+  select.proj { font-family:var(--mono); font-size:12px; background:var(--surface-2);
+    color:var(--text); border:1px solid var(--rule); border-radius:6px; padding:8px;
+    min-height:40px; max-width:240px; }
+
+  /* ---- the situation: what a manager needs in the first five seconds ---- */
+  .situation { display:flex; gap:18px; align-items:center; flex-wrap:wrap;
+    padding:14px 0 12px; border-bottom:1px solid var(--rule); }
+  .needs { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+  .needs .n { font-family:var(--serif); font-size:2.1rem; line-height:1; color:var(--amber); }
+  .needs .n.clear { color:var(--ok); }
+  .needs .lbl { font-family:var(--mono); font-size:11px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--muted); }
+  .kinds { display:flex; gap:6px; flex-wrap:wrap; margin-left:4px; }
+  .kc { font-family:var(--mono); font-size:11.5px; padding:5px 9px; border-radius:4px;
+    border:1px solid var(--rule); background:var(--surface); color:var(--muted);
+    cursor:pointer; min-height:32px; }
+  .kc.decide { color:var(--amber); border-color:var(--amber); background:var(--amber-soft); }
+  .kc.triage { color:var(--teal); border-color:var(--teal); background:var(--teal-soft); }
+  .kc.health { color:var(--danger); border-color:var(--danger); background:var(--danger-soft); }
+  .kc.review { color:var(--ok); border-color:var(--ok); background:var(--ok-soft); }
+  .kc.rest { cursor:default; }
+
+  /* ---- fleet strip: thirty sessions, one glance ---- */
+  .fleet { border-bottom:1px solid var(--rule); padding:10px 0 12px; }
+  .fleet .head { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--faint); }
+  .fleet .head b { color:var(--teal); font-weight:600; letter-spacing:.14em; }
+  .fleet .head .warn { color:var(--danger); }
+  .fleet .head .quiet { margin-left:auto; text-transform:none; letter-spacing:0; }
+  .fleet .head .quiet b { color:var(--danger); }
+  .chips { display:flex; flex-wrap:wrap; gap:5px; margin-top:9px; max-height:104px; overflow-y:auto; }
+  .chip { font-family:var(--mono); font-size:11px; padding:5px 8px; border-radius:4px;
+    border:1px solid var(--rule); background:var(--surface); color:var(--muted);
+    white-space:nowrap; cursor:default; min-height:30px; display:inline-flex;
+    align-items:center; gap:6px; }
+  .chip.busy { border-color:var(--teal); color:var(--teal); background:var(--teal-soft); cursor:pointer; }
+  .chip.busy.quiet { border-color:var(--danger); color:var(--danger); background:var(--danger-soft); }
+  .chip.slack { opacity:.55; }
+  .chip.gone { border-style:dashed; opacity:.45; }
+  .chip i { font-style:normal; color:var(--faint); }
+  .chip.busy i { color:inherit; opacity:.8; }
+
+  .grouphead { display:flex; align-items:baseline; gap:12px; margin:26px 0 8px; flex-wrap:wrap; }
+  .grouphead h2 { font-family:var(--mono); font-size:12px; letter-spacing:.16em;
+    text-transform:uppercase; font-weight:600; }
+  .grouphead .n { font-family:var(--mono); font-size:11.5px; color:var(--faint); }
+  .grouphead .say { font-size:13px; color:var(--muted); flex-basis:100%; }
+  .grouphead.decide h2 { color:var(--amber); } .grouphead.triage h2 { color:var(--teal); }
+  .grouphead.health h2 { color:var(--danger); } .grouphead.review h2 { color:var(--ok); }
+  .quietctl { margin-left:auto; display:flex; align-items:center; gap:4px;
+    font-family:var(--mono); font-size:11px; color:var(--faint); }
+  .quietctl button { font:inherit; background:var(--surface-2); color:var(--muted);
+    border:1px solid var(--rule); border-radius:4px; padding:5px 8px; cursor:pointer; min-height:30px; }
+  .quietctl button.on { color:var(--amber); border-color:var(--amber); background:var(--amber-soft); }
+
+  .card { background:var(--surface); border:1px solid var(--rule); border-radius:8px; margin-bottom:8px; }
+  .card.open { border-color:var(--faint); }
+  .rowline { display:flex; gap:12px; align-items:baseline; padding:13px 16px;
+    cursor:pointer; flex-wrap:wrap; border-radius:8px; }
+  .rowline:hover { background:var(--surface-2); }
+  .ref { font-family:var(--mono); font-size:12.5px; color:var(--muted); min-width:64px; }
+  .reason { flex:1; min-width:200px; font-size:14.5px; }
+  .age { font-family:var(--mono); font-size:11.5px; color:var(--faint); }
+  .todo-hint { font-family:var(--mono); font-size:10.5px; color:var(--faint);
+    border:1px solid var(--rule); border-radius:3px; padding:2px 7px; white-space:nowrap; }
+  .flag { font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+    padding:3px 8px; border-radius:3px; white-space:nowrap; align-self:center; }
+  .flag.decide { background:var(--amber-soft); color:var(--amber); }
+  .flag.triage { background:var(--teal-soft); color:var(--teal); }
+  .flag.health { background:var(--danger-soft); color:var(--danger); }
+  .flag.review { background:var(--ok-soft); color:var(--ok); }
+
+  /* Link tags: the one envelope this deployment's own nouns live in (§15). */
+  .tags { display:flex; gap:5px; flex-wrap:wrap; flex-basis:100%; margin-top:2px; }
+  .tag { font-family:var(--mono); font-size:10.5px; color:var(--muted);
+    background:var(--screen); border-radius:3px; padding:2px 7px; white-space:nowrap;
+    max-width:100%; overflow:hidden; text-overflow:ellipsis; }
+  .tag b { color:var(--faint); font-weight:400; }
+  .tag.area { color:var(--danger); }
+  .tag.git { color:var(--teal); }
+
+  .expand { border-top:1px solid var(--rule); padding:16px; }
+  .expand .intent { color:var(--muted); font-size:14px; margin-bottom:10px; }
+  .meta { font-family:var(--mono); font-size:11.5px; color:var(--faint); margin-bottom:10px; }
+  .prompt { font-family:var(--serif); font-size:1.05rem; margin-bottom:12px; }
+
+  .opt { border:1px solid var(--rule); border-radius:7px; padding:12px 14px; margin-bottom:8px;
+    background:var(--surface-2); }
+  .opt .optline { display:flex; gap:10px; align-items:baseline; flex-wrap:wrap; }
+  .opt .oid { font-family:var(--mono); font-size:11px; color:var(--amber); }
+  .opt .olabel { font-weight:600; }
+  .opt .otr { color:var(--muted); font-size:13.5px; font-style:italic; }
+  .opt ul.ev { margin:6px 0 0 18px; font-size:13px; color:var(--muted); }
+  .opt ul.ev.none { list-style:none; margin-left:0; color:var(--faint); font-style:italic; }
+  .opt button { margin-left:auto; }
+
+  .record dt { font-family:var(--mono); font-size:10.5px; letter-spacing:.1em;
+    text-transform:uppercase; color:var(--faint); margin-top:10px; }
+  .record dd { margin:2px 0 0; font-size:14px; }
+  .record ul { margin:2px 0 0 18px; font-size:13.5px; }
+  .record dd.friction { color:var(--amber); }
+  .handoff { background:var(--screen); border-radius:7px; padding:12px 14px; margin:8px 0;
+    font-size:13.5px; }
+  .handoff b { font-family:var(--mono); font-size:10.5px; letter-spacing:.08em;
+    text-transform:uppercase; color:var(--faint); display:block; margin-top:8px; }
+  .handoff b:first-child { margin-top:0; }
+
+  .actions { display:flex; gap:8px; align-items:center; margin-top:14px; flex-wrap:wrap; }
+  .actions .why { flex-basis:100%; font-size:12.5px; color:var(--faint); margin:-4px 0 0; }
+  button.act { font-family:var(--sans); font-size:13.5px; border-radius:6px; padding:10px 14px;
+    cursor:pointer; border:1px solid var(--rule); background:var(--surface-2); color:var(--text);
+    min-height:42px; }
+  button.act.primary { background:var(--amber); border-color:var(--amber); color:#171308; font-weight:600; }
+  button.act.good { background:var(--ok); border-color:var(--ok); color:#0e1a12; font-weight:600; }
+  button.act.bad { color:var(--danger); border-color:var(--danger); background:transparent; }
+  input.inline, select.inline { background:var(--surface-2); color:var(--text); font:inherit;
+    font-size:13.5px; border:1px solid var(--rule); border-radius:6px; padding:10px;
+    flex:1; min-width:150px; min-height:42px; }
+  select.inline { flex:0; }
+
+  .proj { background:var(--surface); border:1px solid var(--rule); border-radius:10px;
+    padding:18px 20px; margin:14px 0; }
+  .proj h3 { font-family:var(--serif); font-weight:500; font-size:1.2rem; }
+  .proj .goal { color:var(--muted); font-size:13.5px; margin:2px 0 8px; }
+  .proj .tally { font-family:var(--mono); font-size:11px; color:var(--faint);
+    border-top:1px solid var(--rule); border-bottom:1px solid var(--rule);
+    padding:7px 0; margin-bottom:8px; display:flex; gap:14px; flex-wrap:wrap; }
+  .proj .tally b { color:var(--muted); font-weight:600; }
+  .proj .tally .warn { color:var(--danger); }
+  .proj .sub { font-family:var(--mono); font-size:10px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--faint); margin:12px 0 2px; }
+  .item { display:flex; gap:10px; align-items:baseline; padding:9px 8px; border-radius:6px;
+    cursor:pointer; flex-wrap:wrap; }
+  .item:hover { background:var(--surface-2); }
+  .item .t { flex:1; min-width:190px; font-size:14px; }
+  .item .t small { display:block; color:var(--muted); font-size:12.5px; }
+  .item .t small.next { color:var(--faint); }
+  .item .t small.dep { color:var(--danger); font-family:var(--mono); font-size:11.5px; }
+  .sflag { font-family:var(--mono); font-size:10px; letter-spacing:.06em; text-transform:uppercase;
+    padding:3px 7px; border-radius:3px; align-self:center; white-space:nowrap; }
+  .sflag.run { background:var(--teal-soft); color:var(--teal); }
+  .sflag.run.quiet { background:var(--danger-soft); color:var(--danger); }
+  .sflag.park { background:var(--danger-soft); color:var(--danger); }
+  .sflag.rev { background:var(--ok-soft); color:var(--ok); }
+  .sflag.todo { background:var(--surface-2); color:var(--muted); }
+  .sflag.todo.blocked { background:var(--danger-soft); color:var(--danger); }
+  .sflag.prop { background:var(--amber-soft); color:var(--amber); }
+
+  .morebar { display:flex; align-items:center; gap:12px; margin:16px 0 4px; flex-wrap:wrap;
+    font-family:var(--mono); font-size:11.5px; color:var(--faint); }
+  .morebar button { font-family:var(--mono); font-size:11.5px; letter-spacing:.06em;
+    text-transform:uppercase; background:var(--surface-2); color:var(--text);
+    border:1px solid var(--rule); border-radius:6px; padding:9px 16px; cursor:pointer; min-height:40px; }
+  .morebar .moving { color:var(--amber); }
+
+  .drawer-bg { position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:9; }
+  .drawer { position:fixed; top:0; right:0; bottom:0; width:min(580px,100%);
+    background:var(--surface); border-left:1px solid var(--rule); z-index:10;
+    overflow-y:auto; padding:22px 24px calc(60px + env(safe-area-inset-bottom)); }
+  .drawer h3 { font-family:var(--serif); font-weight:500; font-size:1.25rem; margin:4px 0 2px; }
+  .drawer h4 { font-family:var(--mono); font-size:10.5px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--faint); font-weight:600; margin:22px 0 4px; }
+  .drawer .close { float:right; font-size:22px; background:none; border:none;
+    color:var(--muted); cursor:pointer; padding:6px 10px; min-height:42px; }
+  .kv { font-family:var(--mono); font-size:11.5px; color:var(--faint); margin:8px 0 14px; }
+  .ev-row { display:flex; gap:10px; padding:9px 0; border-top:1px solid var(--rule); font-size:13.5px; }
+  .ev-row .seq { font-family:var(--mono); font-size:11px; color:var(--faint); min-width:38px; }
+  .ev-row .k { font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
+    letter-spacing:.06em; min-width:74px; }
+  .k.progress { color:var(--teal); } .k.note { color:var(--muted); } .k.question { color:var(--amber); }
+  .k.answer { color:var(--ok); } .k.rejection { color:var(--danger); }
+  .k.unparked { color:var(--teal); } .k.completed { color:var(--ok); }
+  .ev-row .b { flex:1; min-width:0; overflow-wrap:anywhere; } .ev-row .b small { color:var(--faint); }
+  .ev-row .when { font-family:var(--mono); font-size:10.5px; color:var(--faint); }
+  pre.links { font-family:var(--mono); font-size:12px; background:var(--screen);
+    border-radius:7px; padding:10px 12px; overflow-x:auto; color:var(--muted); }
+
+  .empty { text-align:center; padding:56px 0 30px; color:var(--muted); }
+  .empty .big { font-family:var(--serif); font-size:1.5rem; color:var(--text); }
+  .empty p { font-size:14px; max-width:46ch; margin:6px auto 0; }
+  .empty code { font-family:var(--mono); font-size:12.5px; background:var(--screen);
+    border-radius:4px; padding:3px 7px; display:inline-block; margin-top:10px; }
+
+  /* The sign-in gate: an honest panel, never a repeating browser prompt. */
+  .gate { max-width:460px; margin:64px auto; background:var(--surface);
+    border:1px solid var(--rule); border-radius:10px; padding:24px; }
+  .gate h2 { font-family:var(--serif); font-weight:500; font-size:1.3rem; }
+  .gate p { color:var(--muted); font-size:13.5px; margin:6px 0 14px; }
+  .gate p.bad { color:var(--danger); }
+  .gate input { width:100%; background:var(--surface-2); color:var(--text);
+    border:1px solid var(--rule); border-radius:6px; padding:12px; font:inherit;
+    font-family:var(--mono); font-size:13.5px; min-height:46px; }
+  .gate .actions { margin-top:12px; }
+
+  .banner { display:flex; gap:12px; align-items:center; flex-wrap:wrap;
+    background:var(--danger-soft); border:1px solid var(--danger); border-radius:8px;
+    padding:12px 16px; margin:14px 0 0; font-size:14px; color:var(--text); }
+  .banner b { color:var(--danger); font-family:var(--mono); font-size:11px;
+    letter-spacing:.1em; text-transform:uppercase; }
+  .banner button { margin-left:auto; }
+
+  #toast { position:fixed; bottom:calc(52px + env(safe-area-inset-bottom)); left:50%;
+    transform:translateX(-50%); background:var(--surface-2); border:1px solid var(--rule);
+    color:var(--text); border-radius:8px; padding:11px 18px; font-size:14px;
+    z-index:20; display:none; max-width:92%; }
+  #toast.err { border-color:var(--danger); color:var(--danger); }
+
+  /* The status bar: the console's own instrument panel. */
+  .statusbar { position:fixed; left:0; right:0; bottom:0; z-index:8;
+    display:flex; gap:14px; align-items:center; flex-wrap:wrap;
+    background:var(--screen); border-top:1px solid var(--rule);
+    padding:8px 18px calc(8px + env(safe-area-inset-bottom));
+    font-family:var(--mono); font-size:11px; color:var(--faint); }
+  .statusbar b { color:var(--muted); font-weight:600; }
+  .statusbar .right { margin-left:auto; display:flex; gap:12px; align-items:center; }
+  .statusbar .err { color:var(--danger); }
+  .statusbar .held { color:var(--amber); }
+  .statusbar button { font:inherit; background:transparent; color:var(--muted);
+    border:1px solid var(--rule); border-radius:4px; padding:4px 9px; cursor:pointer; min-height:28px; }
+
+  @media (max-width: 620px) {
+    body { font-size:15px; }
+    .brand span { display:none; }
+    nav.tabs { margin-left:0; width:100%; }
+    nav.tabs button { flex:1; justify-content:center; }
+    select.proj { flex:1; max-width:none; }
+    .needs .n { font-size:1.8rem; }
+    .fleet .head .quiet { margin-left:0; flex-basis:100%; }
+    .quietctl { margin-left:0; flex-basis:100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><b>owp-code</b> <span>· fleet console</span></div>
+    <select class="proj" id="proj" aria-label="project"><option value="">all projects</option></select>
+    <nav class="tabs">
+      <button id="tab-attention" class="active">Needs you <span class="badge zero" id="tab-count">0</span></button>
+      <button id="tab-portfolio">Board</button>
+    </nav>
+  </header>
+  <div class="situation" id="situation" hidden></div>
+  <div class="fleet" id="fleet" hidden></div>
+  <main id="main"></main>
+</div>
+<div id="overlay"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<footer class="statusbar" id="statusbar"></footer>
+
+<script>
+'use strict';
+const $ = (s, el) => (el || document).querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const rel = s => s < 90 ? s + 's' : s < 5400 ? Math.round(s/60) + 'm' : s < 129600 ? Math.round(s/3600) + 'h' : Math.round(s/86400) + 'd';
+const plural = (n, w) => n + ' ' + w + (n === 1 ? '' : 's');
+
+// The queue is paged, because at thirty sessions it is hundreds of rows long
+// and the operator is holding a tablet. PAGE is a rendering decision, not a
+// protocol one — attention({limit, cursor}) is the same verb either way.
+const PAGE = 25;
+const POLL_MS = 5000;
+const MAX_BACKOFF_MS = 30000;
+// How long a holding session may be silent before this console calls it quiet.
+// §8 is explicit that no threshold belongs in the surface — what reads as
+// "stalled" is the client's judgement, so it is set here, once, and used
+// everywhere: the fleet strip, the health filter, and the board.
+const QUIET_CHOICES = [5, 30, 120, 0];   // minutes; 0 = show everything
+
+const state = {
+  view: 'attention', attention: [], portfolio: [], sessions: [], projects: [],
+  project: '',           // '' = every project; a session binds to one, an operator does not
+  cursor: null, total: 0, more: false,   // cursor is an opaque §15 keyset token
+  pages: 1,              // pages walked since the last re-anchor
+  expanded: null,        // key of the open attention card
+  drawer: null,          // ref shown in the drawer
+  quietMin: 30,
+  describe: null,        // §9: what surface is this, and what may I do on it?
+  lastSync: null, failures: 0, lastError: null,
+  auth: 'ok',            // ok | required | refused
+  gateShown: null,       // which gate message is currently on screen
+  booted: false,
+};
+
+// A row's identity across pages: the whole tuple the §15 ordering sorts on,
+// `key` included. Without `key` two rows the surface deliberately separated —
+// two questions asked on one item in the same instant — merge into one, and
+// "load more" drops the second one it was handed.
+const rowKey = r => r.kind + ' ' + r.target + ' ' + r.since + ' ' + (r.key || '');
+// A card's identity for expand/collapse. `target` alone is not enough: one
+// in-progress item can raise both a quiet-holder row and an unreconciled row,
+// and collapsing them into one key opened both cards at once. `key` finishes
+// the job for two rows that share a kind AND an action.
+const cardKey = r => r.kind + ':' + r.target + ':' + r.action + ':' + r.since + ':' + (r.key || '');
+
+class Unauthenticated extends Error {}
+const requestKey = () => globalThis.crypto?.randomUUID?.() || `ui-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+async function call(verb, args) {
+  const headers = { 'content-type': 'application/json', 'x-owp-client': 'operator-ui' };
+  const token = localStorage.getItem('owp-token');
+  if (token) headers.authorization = 'Bearer ' + token;
+  if (!['attention','portfolio','work.view','sessions','session.view','surface.describe','policy.applicable','knowledge.query','work.get'].includes(verb)) {
+    headers['idempotency-key'] = requestKey();
+  }
+  let res;
+  try {
+    const signal = globalThis.AbortSignal?.timeout?.(10000);
+    res = await fetch('/v0/' + verb, {
+      method: 'POST', headers, body: JSON.stringify(args || {}), ...(signal ? { signal } : {}),
+    });
+  } catch (e) {
+    throw new Error('the surface did not answer (' + (e.message || 'network error') + ')');
+  }
+  const payload = await res.json().catch(() => ({ ok: false, error: { code: 'INTERNAL', message: 'unreadable response' } }));
+  if (!payload.ok) {
+    // Token-authenticated surface (D-20). The old build asked with a browser
+    // prompt() inside the poll loop, which meant a wrong token re-asked every
+    // five seconds, four times over. Authentication is a state of the console,
+    // not an interruption.
+    if (payload.error.code === 'UNAUTHENTICATED') throw new Unauthenticated(payload.error.message);
+    throw new Error(payload.error.message + '  [' + payload.error.code + ']');
+  }
+  return payload.result;
+}
+
+function toast(msg, isErr) {
+  const t = $('#toast');
+  t.textContent = msg; t.className = isErr ? 'err' : ''; t.style.display = 'block';
+  clearTimeout(t._h); t._h = setTimeout(() => { t.style.display = 'none'; }, isErr ? 7000 : 2500);
+}
+
+async function act(fn, okMsg) {
+  try { await fn(); state.expanded = null; if (okMsg) toast(okMsg); await refresh(true); }
+  catch (e) {
+    if (e instanceof Unauthenticated) { state.auth = 'refused'; return render(); }
+    toast(e.message, true);
+  }
+}
+
+// ---------- data ----------
+
+const scope = () => (state.project ? { project: state.project } : {});
+// Reading is paused while the operator is mid-decision or reading past page one.
+// Nothing is ever yanked out from under a card that is open.
+const paused = () => !!(state.expanded || state.drawer || state.pages > 1);
+
+async function refresh(force) {
+  if (!force && paused()) { renderStatusbar(); return; }
+  // While the gate is up, polling would be five 401s every five seconds and a
+  // half-typed token wiped out under the operator's fingers.
+  if (!force && state.auth !== 'ok') { renderStatusbar(); return; }
+  try {
+    const [describe, projects, sessions, portfolio, page] = await Promise.all([
+      state.describe ? state.describe : call('surface.describe'),
+      state.projects.length ? state.projects : call('project.list'),
+      call('sessions', scope()),
+      call('portfolio', scope()),
+      call('attention', Object.assign({ limit: PAGE }, scope())),
+    ]);
+    state.describe = describe;
+    state.projects = projects;
+    state.sessions = sessions;
+    state.portfolio = portfolio;
+    state.attention = page.rows; state.cursor = page.cursor;
+    state.total = page.total; state.more = page.more; state.pages = 1;
+    state.lastSync = Date.now(); state.failures = 0; state.lastError = null;
+    state.auth = 'ok';
+  } catch (e) {
+    if (e instanceof Unauthenticated) { state.auth = state.auth === 'ok' && !localStorage.getItem('owp-token') ? 'required' : 'refused'; }
+    else { state.failures++; state.lastError = e.message; }
+  }
+  state.booted = true;
+  render();
+}
+
+// "Load more" walks the keyset cursor (§15): an opaque token naming the last
+// row served, resumed *after* in the total order. Churn between pages cannot
+// shift it, so a page-through neither repeats nor skips — which is the whole
+// reason finding C-1 went to the spec instead of being patched here.
+async function loadMore() {
+  try {
+    const page = await call('attention', Object.assign({ limit: PAGE }, state.cursor ? { cursor: state.cursor } : {}, scope()));
+    const seen = new Set(state.attention.map(rowKey));
+    for (const r of page.rows) if (!seen.has(rowKey(r))) state.attention.push(r);
+    state.cursor = page.cursor; state.total = page.total; state.more = page.more;
+    state.pages++;
+    render();
+  } catch (e) {
+    if (e instanceof Unauthenticated) { state.auth = 'refused'; return render(); }
+    toast(e.message, true);
+  }
+}
+
+// ---------- what the operator is looking at ----------
+
+const KINDS = {
+  decision: { cls: 'decide', head: 'Decisions', chip: n => plural(n, 'decision'),
+    say: 'An agent asked and kept working. Anything parked on the question stays parked until you answer or redirect.' },
+  triage: { cls: 'triage', head: 'Triage', chip: n => plural(n, 'proposal'),
+    say: 'Work an agent proposed, and re-sync claims. Nothing starts and nothing is lost until you say yes or no.' },
+  health: { cls: 'health', head: 'Health', chip: n => n + ' to watch',
+    say: 'Observations, not deadlines — quiet holders, waiting locks, drift. Nothing here changes on its own.' },
+  review: { cls: 'review', head: 'Review', chip: n => n + ' to accept',
+    say: 'Finished work waiting to be accepted. Whatever is ordered behind it cannot start until it exits.' },
+};
+const ORDER = ['decision', 'triage', 'health', 'review'];
+
+// The surface's one-line reason already knows what it is; the row's flag says it
+// again in colour. Strip the prefix that only repeats the flag, and leave every
+// reason that carries information ("sent back, awaiting enrichment: …") alone.
+const tidyReason = (r) => r.kind === 'decision' ? r.reason.replace(/^Q#\d+\s+/, '')
+  : r.kind === 'review' ? r.reason.replace(/^review:\s+/, '')
+  : r.kind === 'triage' ? r.reason.replace(/^proposal:\s+/, '')
+  : r.reason;
+
+// What the row is asking of you, in three words. `action` is the surface's own
+// "the single action that clears it" (§15); these are this console's words for it.
+const ACTION_WORDS = {
+  answer: 'answer', triage: 'accept or send back', release: 'release if the agent is gone',
+  unpark: 'unpark', reconcile: 'the owning agent reconciles',
+};
+
+// Counts that are honest under paging. Rows arrive in kind order, so every kind
+// that ends before the last loaded row is complete; the last kind present is a
+// floor, and anything after it is not yet counted. Saying "3 decisions" when
+// three is a floor would be the exact failure this console exists to prevent.
+function kindCounts() {
+  const n = {}; for (const k of ORDER) n[k] = 0;
+  for (const r of state.attention) n[r.kind] = (n[r.kind] || 0) + 1;
+  const last = state.attention.length ? state.attention[state.attention.length - 1].kind : null;
+  const lastAt = last ? ORDER.indexOf(last) : ORDER.length;
+  const out = [];
+  for (let i = 0; i < ORDER.length; i++) {
+    const k = ORDER[i];
+    if (!n[k]) continue;
+    out.push({ kind: k, n: n[k], exact: !state.more || i < lastAt });
+  }
+  return out;
+}
+
+function renderSituation() {
+  const el = $('#situation');
+  if (!state.projects.length) { el.hidden = true; return; }
+  el.hidden = false;
+  const counts = kindCounts();
+  const loaded = state.attention.length;
+  const rest = Math.max(0, state.total - loaded);
+  let chips = counts.map(c => {
+    // A count that stops inside its own kind is a floor, not a total, and says so.
+    const label = KINDS[c.kind].chip(c.n).replace(String(c.n), c.n + (c.exact ? '' : '+'));
+    return `<button class="kc ${KINDS[c.kind].cls}" data-jump="${c.kind}"
+       title="${esc(KINDS[c.kind].say)}${c.exact ? '' : ' — at least this many; load more to count them all'}">${esc(label)}</button>`;
+  }).join('');
+  if (rest) chips += `<span class="kc rest">+${rest} not yet read</span>`;
+  el.innerHTML = `<div class="needs">
+      <span class="n${state.total ? '' : ' clear'}">${state.total}</span>
+      <span class="lbl">${state.total === 1 ? 'row needs you' : 'rows need you'}</span>
+      <span class="kinds">${chips || '<span class="kc rest">the queue is empty</span>'}</span>
+    </div>`;
+}
+
+// ---------- the fleet strip ----------
+// sessions() is the surface's own projection (§15): tool, host, project,
+// current item, and elapsed idle time as a FACT. No thresholds live in the
+// surface — the "quiet" line below is this console's judgement, and the only
+// button that exists sits on the item, not on the session.
+
+function renderFleet() {
+  const el = $('#fleet');
+  if (!state.projects.length) { el.hidden = true; return; }
+  el.hidden = false;
+  const s = state.sessions || [];
+  if (!s.length) {
+    el.innerHTML = `<div class="head"><b>fleet</b><span>no sessions registered${state.project ? ' in ' + esc(state.project) : ''}</span>
+      <span class="quiet">agents register themselves — nothing here is waiting on you</span></div>`;
+    return;
+  }
+  // What each session actually holds, from the board rather than from
+  // `current_item` alone: a session may hold more than one item, and
+  // `current_item` only remembers the latest claim. A holder that dropped off
+  // the strip is precisely the holder this operator is afraid of.
+  const held = new Map();
+  for (const p of state.portfolio) {
+    for (const d of p.in_flight || []) {
+      if (!d.owner_session) continue;
+      held.set(d.owner_session, [...(held.get(d.owner_session) ?? []), d.ref]);
+    }
+  }
+  const holdsOf = x => held.get(x.id) ?? (x.current_item ? [x.current_item] : []);
+  const busy = s.filter(x => x.status !== 'ended' && holdsOf(x).length);
+  const ended = s.filter(x => x.status === 'ended');
+  const idle = s.length - busy.length - ended.length;
+  const items = [...held.values()].reduce((n, r) => n + r.length, 0);
+  const quietFor = state.quietMin * 60;
+  const quiet = busy.filter(x => state.quietMin && x.idle_s >= quietFor)
+    .sort((a, b) => b.idle_s - a.idle_s);
+  let head = `<div class="head"><b>fleet</b>
+    <span>${plural(s.length, 'session')}</span>
+    <span>${busy.length} holding${items > busy.length ? ` ${items} items` : ' work'}</span><span>${idle} idle</span>
+    ${ended.length ? `<span class="warn">${ended.length} ended</span>` : ''}`;
+  head += quiet.length
+    ? `<span class="quiet"><b>${plural(quiet.length, 'holder')} silent ≥ ${state.quietMin}m</b> — longest ${esc(quiet[0].id)} at ${rel(quiet[0].idle_s)}</span>`
+    : busy.length
+      ? `<span class="quiet">every holder has spoken inside ${state.quietMin ? state.quietMin + 'm' : 'any window'}</span>`
+      : '<span class="quiet">nobody is holding work</span>';
+  head += '</div><div class="chips">';
+  const rank = x => (x.status === 'ended' ? 2 : holdsOf(x).length ? 0 : 1);
+  for (const x of s.slice().sort((a, b) => rank(a) - rank(b) || b.idle_s - a.idle_s)) {
+    const holds = holdsOf(x);
+    const isQuiet = holds.length && x.status !== 'ended' && state.quietMin && x.idle_s >= quietFor;
+    const cls = x.status === 'ended' ? 'gone' : holds.length ? 'busy' + (isQuiet ? ' quiet' : '') : 'slack';
+    const tail = holds.length
+      ? esc(holds[0]) + (holds.length > 1 ? ` +${holds.length - 1}` : '') + ' · ' + rel(x.idle_s)
+      : x.status === 'ended' ? 'ended' : 'idle ' + rel(x.idle_s);
+    head += `<span class="chip ${cls}"${holds.length ? ` role="button" tabindex="0" data-view-ref="${esc(holds[0])}"` : ''}
+      title="${esc(x.tool)} on ${esc(x.host)} · ${esc(x.project)} · last spoke ${rel(x.idle_s)} ago${holds.length ? ' · holds ' + holds.map(esc).join(', ') : ''}${x.parent_session ? ' · from ' + esc(x.parent_session) : ''}">${esc(x.id)} <i>${tail}</i></span>`;
+  }
+  el.innerHTML = head + '</div>';
+}
+
+function renderProjects() {
+  const sel = $('#proj');
+  const want = ['<option value="">all projects</option>']
+    .concat((state.projects || []).map(p => `<option value="${esc(p.key)}">${esc(p.key)} · ${esc(p.name)}</option>`)).join('');
+  if (sel.innerHTML !== want) sel.innerHTML = want;
+  sel.value = state.project;
+}
+
+// ---------- the deployment's own nouns, on the row (§15) ----------
+// Links ride every attention row because they are the one envelope owp-code's
+// vocabulary lives in — branch, exclusive area, pipeline. "Two agents on the
+// same directory" is a question only `areas` can answer, and answering it from
+// the row is the difference between steering and opening four items.
+
+function tagsHtml(links) {
+  if (!links) return '';
+  const out = [];
+  const push = (cls, label, value) => out.push({ cls, label, value: String(value) });
+  for (const [type, entries] of Object.entries(links)) {
+    if (!Array.isArray(entries) || !entries.length) continue;
+    if (type === 'git') { for (const e of entries) if (e && e.branch) push('git', 'branch', e.branch); }
+    else if (type === 'areas') { for (const e of entries) if (e && e.area) push('area', 'area', e.area); }
+    else if (type === 'ci') { for (const e of entries) if (e && e.pipeline) push('', 'ci', e.pipeline + (e.status ? ' ' + e.status : '')); }
+    else if (type === 'references') push('', 'refs', entries.length);
+    else {
+      // §19 must-preserve/must-ignore: a link type this console has never heard
+      // of still shows, because it is somebody's vocabulary and it round-trips.
+      const first = entries[0];
+      const val = first && typeof first === 'object'
+        ? (Object.values(first).find(v => typeof v === 'string') ?? entries.length)
+        : first;
+      push('', type, val);
+    }
+  }
+  if (!out.length) return '';
+  const shown = out.slice(0, 4);
+  return '<span class="tags">' + shown.map(t =>
+    `<span class="tag ${t.cls}"><b>${esc(t.label)}</b> ${esc(t.value)}</span>`).join('') +
+    (out.length > shown.length ? `<span class="tag">+${out.length - shown.length}</span>` : '') + '</span>';
+}
+
+// ---------- attention ----------
+
+function renderAttention() {
+  if (!state.projects.length) {
+    return `<div class="empty"><div class="big">Nothing is tracked here yet.</div>
+      <p>Create a project, then point a fleet at it. Everything an agent asks you lands on this screen.</p>
+      <code>owp project add PLAT "platform" --goal "One codebase, many hands."</code></div>`;
+  }
+  const hiddenQuiet = state.attention.filter(r =>
+    r.kind === 'health' && r.action === 'release' && state.quietMin && r.elapsed_s < state.quietMin * 60).length;
+  const rows = state.attention.filter(r =>
+    !(r.kind === 'health' && r.action === 'release' && state.quietMin && r.elapsed_s < state.quietMin * 60));
+
+  if (!rows.length && !state.more) return emptyQueue(hiddenQuiet);
+
+  let html = '';
+  for (const kind of ORDER) {
+    const g = rows.filter(r => r.kind === kind);
+    if (!g.length) continue;
+    const k = KINDS[kind];
+    html += `<div class="grouphead ${k.cls}" id="grp-${kind}"><h2>${k.head}</h2><span class="n">${g.length}</span>`;
+    if (kind === 'health') html += quietControl();
+    html += `<span class="say">${esc(k.say)}</span></div>`;
+    for (const r of g) {
+      const key = cardKey(r);
+      const open = state.expanded === key;
+      html += `<div class="card${open ? ' open' : ''}">
+        <div class="rowline" role="button" tabindex="0" aria-expanded="${open}" data-toggle="${esc(key)}">
+          <span class="flag ${k.cls}">${k.cls}</span>
+          <span class="ref">${esc(r.target)}</span>
+          <span class="reason">${esc(tidyReason(r))}</span>
+          <span class="todo-hint">${esc(ACTION_WORDS[r.action] || r.action)}</span>
+          <span class="age">${rel(r.elapsed_s)}</span>
+          ${tagsHtml(r.links)}
+        </div>${open ? renderExpand(r) : ''}</div>`;
+    }
+  }
+  const loaded = state.attention.length;
+  html += `<div class="morebar">
+    <span>showing ${rows.length} of ${state.total} row${state.total === 1 ? '' : 's'}${hiddenQuiet ? ` · ${hiddenQuiet} quiet holder${hiddenQuiet === 1 ? '' : 's'} folded away` : ''}</span>
+    ${state.more ? `<button data-act="more">Load ${Math.min(PAGE, state.total - loaded)} more</button>` : ''}
+    ${state.pages > 1 ? '<span class="moving">live updates held while you read past the first page</span><button data-act="reanchor">Back to the top</button>' : ''}
+  </div>`;
+  return html;
+}
+
+// An empty queue means very different things depending on what the fleet is
+// doing, and a manager checking in for ninety seconds deserves the difference.
+function emptyQueue(hiddenQuiet) {
+  const s = state.sessions || [];
+  let blocked = 0, todo = 0, holding = 0;
+  for (const p of state.portfolio) {
+    holding += (p.in_flight || []).length;
+    for (const d of p.todo || []) { todo++; if (d.blocked) blocked++; }
+  }
+  const idle = Math.max(0, s.filter(x => x.status !== 'ended').length - holding);
+  let line;
+  if (!s.length) line = 'No agent sessions are registered, so nothing is running. Start a fleet and its questions will land here.';
+  else if (holding) line = `${plural(holding, 'item')} in flight. Decisions, proposals, quiet holders and finished work all land here.`;
+  else if (blocked) line = `${plural(idle, 'session')} idle, and ${blocked} of ${todo} queued items are blocked by dependencies — the board says which.`;
+  else if (todo) line = `${plural(idle, 'session')} idle with ${plural(todo, 'item')} still queued.`;
+  else line = 'The working set is empty. A productive week makes this surface smaller, not bigger.';
+  return `<div class="empty"><div class="big">Nothing needs you.</div><p>${esc(line)}</p>
+    ${hiddenQuiet ? `<p>${hiddenQuiet} holder${hiddenQuiet === 1 ? ' has' : 's have'} been silent for less than ${state.quietMin}m and ${hiddenQuiet === 1 ? 'is' : 'are'} folded away.</p>` : ''}</div>`;
+}
+
+function quietControl() {
+  return '<span class="quietctl">call a holder quiet after' +
+    QUIET_CHOICES.map(m => `<button data-quiet="${m}" class="${state.quietMin === m ? 'on' : ''}">${m ? (m < 60 ? m + 'm' : (m / 60) + 'h') : 'show all'}</button>`).join('') +
+    '</span>';
+}
+
+function renderExpand(r) {
+  let inner = '';
+  if (r.kind === 'decision') inner = expandDecision(r);
+  else if (r.kind === 'triage') inner = expandTriage(r);
+  else if (r.kind === 'health') inner = expandHealth(r);
+  else if (r.kind === 'review') inner = expandReview(r);
+  return `<div class="expand" data-target="${esc(r.target)}">${inner}</div>`;
+}
+
+function expandDecision(r) {
+  const d = r.detail || {}, q = d.body || {};
+  // §7.4: `actor` is the normative field; `session` is a deprecated alias kept
+  // for one revision. Read the new name, tolerate the old.
+  const who = d.actor || d.session || 'an agent';
+  let html = `<div class="meta">asked by ${esc(who)} · question #${d.question}</div>` +
+    `<div class="prompt">${esc(q.prompt)}</div>`;
+  for (const o of q.options || []) {
+    const ev = o.evidence || [];
+    html += `<div class="opt"><div class="optline">
+      <span class="oid">${esc(o.id)}</span><span class="olabel">${esc(o.label)}</span>
+      ${o.tradeoff ? `<span class="otr">${esc(o.tradeoff)}</span>` : ''}
+      <button class="act primary" data-act="answer" data-ref="${esc(r.target)}" data-q="${d.question}" data-choice="${esc(o.id)}">Choose ${esc(o.id)}</button>
+    </div>${ev.length
+      ? '<ul class="ev">' + ev.map(e => `<li>${esc(e.claim)}</li>`).join('') + '</ul>'
+      : '<ul class="ev none"><li>no evidence offered for this option</li></ul>'}</div>`;
+  }
+  html += `<div class="actions">
+    <input class="inline" data-in="text" placeholder="or answer in your own words">
+    <button class="act" data-act="answer-free" data-ref="${esc(r.target)}" data-q="${d.question}">Answer</button>
+  </div>
+  <div class="actions">
+    <p class="why">Redirect if the question itself is wrong — the steer rides in your reason and the agent must not re-ask a variant. Drop it if there is nothing to decide; that closes it for good and keeps the reason as negative knowledge.</p>
+    <input class="inline" data-in="reason" placeholder="your steer (required) — what to do instead">
+    <button class="act bad" title="continuation: redirect" data-act="reject-q" data-ref="${esc(r.target)}" data-q="${d.question}" data-cont="redirect">Redirect ↪</button>
+    <button class="act bad" title="continuation: record-only" data-act="reject-q" data-ref="${esc(r.target)}" data-q="${d.question}" data-cont="record-only">Drop it</button>
+  </div>` + noteBox(r.target);
+  return html;
+}
+
+function recordHtml(rec) {
+  if (!rec) return '<div class="meta">no completion record was filed</div>';
+  const li = a => (a || []).map(x => `<li>${esc(typeof x === 'string' ? x : x.what + ' — ' + x.reason)}</li>`).join('');
+  let html = `<dl class="record"><dt>outcome</dt><dd>${esc(rec.outcome)}</dd>`;
+  if ((rec.friction || []).length) html += `<dt>friction — read this first</dt><dd class="friction"><ul>${li(rec.friction)}</ul></dd>`;
+  if ((rec.now_true || []).length) html += `<dt>now true</dt><dd><ul>${li(rec.now_true)}</ul></dd>`;
+  if ((rec.supersedes || []).length) html += `<dt>supersedes</dt><dd><ul>${li(rec.supersedes)}</ul></dd>`;
+  if ((rec.rejected || []).length) html += `<dt>tried and rejected</dt><dd><ul>${li(rec.rejected)}</ul></dd>`;
+  if ((rec.knowledge_edits || []).length) html += `<dt>knowledge edited</dt><dd><ul>${li(rec.knowledge_edits)}</ul></dd>`;
+  if (rec.completed_by) html += `<dt>filed by</dt><dd>${esc(rec.completed_by)}</dd>`;
+  return html + '</dl>';
+}
+
+function noteBox(ref) {
+  if (!ref) return '';
+  return `<div class="actions">
+    <input class="inline" data-in="comment" placeholder="add a note to ${esc(ref)} — context, no verdict">
+    <button class="act" data-act="note" data-target="${esc(ref)}">Note</button>
+  </div>`;
+}
+
+function triageButtons(target, kind) {
+  // Experience vocabulary over the open continuation envelope (D-17):
+  // needs-info sends a proposal back with your ask; record-only is the hard no;
+  // rework bounces a review item to todo.
+  const sendback = kind === 'review'
+    ? `<button class="act" title="continuation: rework" data-act="triage" data-target="${esc(target)}" data-decision="reject" data-cont="rework">Send back for rework ↺</button>`
+    : `<button class="act" title="continuation: needs-info" data-act="triage" data-target="${esc(target)}" data-decision="reject" data-cont="needs-info">Send back — need more ↺</button>`;
+  const why = kind === 'review'
+    ? 'Accepting is the exit: the item leaves the working set and anything ordered behind it can start. Sending it back returns it to the queue with your reason and clears the record.'
+    : 'Accepting queues the work. Sending it back leaves it here, carrying your ask, until an agent enriches it. Rejecting closes it for good.';
+  return `<div class="actions">
+    <p class="why">${why}</p>
+    <button class="act good" data-act="triage" data-target="${esc(target)}" data-decision="accept">Accept</button>
+    <input class="inline" data-in="reason" placeholder="your reason (required to send back or reject)">
+    ${sendback}
+    <button class="act bad" title="continuation: record-only" data-act="triage" data-target="${esc(target)}" data-decision="reject" data-cont="record-only">Reject — closes it</button>
+  </div>` + noteBox(target.startsWith('rg-') ? '' : target);
+}
+
+function expandTriage(r) {
+  const d = r.detail || {};
+  let html = '';
+  if (d.proposal) {
+    const p = d.proposal;
+    html += `<div class="meta">${esc(p.project)} · ${esc(p.kind)} · ${esc(p.urgency)} · priority ${p.priority}</div>
+      <div class="prompt">${esc(p.title)}</div><div class="intent">${esc(p.intent)}</div>`;
+    if (d.sendback) {
+      html += `<div class="handoff"><b>you sent this back (${esc(d.sendback.continuation)})</b>${esc(d.sendback.reason)}`;
+      for (const e of d.responses || []) {
+        const text = (e.body && e.body.text) ? e.body.text : JSON.stringify(e.body);
+        html += `<b>${esc(e.actor || e.session)} answered</b>${esc(text)}`;
+      }
+      if (d.awaiting_enrichment) html += '<b>status</b>waiting on the machine side — no agent has answered yet';
+      html += '</div>';
+    }
+  } else if (d.reground) {
+    html += `<div class="meta">re-sync from ${esc(d.session)} into ${esc(d.project)} · claims about ${esc(d.reground === 'completed' ? 'finished work' : 'work in flight')}</div>`;
+    const p = d.payload || {};
+    if (d.reground === 'completed') {
+      html += `<div class="prompt">${esc(p.title)}</div><div class="intent">${esc(p.intent || '')}</div>` + recordHtml(p.record);
+    } else {
+      html += `<div class="prompt">${esc(p.ref || p.title || '')}</div>
+        ${p.status_line ? `<div class="intent">${esc(p.status_line)}</div>` : ''}
+        ${p.park ? parkHtml(p.park) : ''}`;
+    }
+  }
+  return html + triageButtons(r.target, r.kind);
+}
+
+function parkHtml(park) {
+  if (!park) return '';
+  const h = park.handoff || {};
+  return `<div class="handoff">
+    <b>waiting on</b>${esc(park.trigger)} <span style="opacity:.6">(${esc(park.cause)})</span>
+    <b>why it stopped</b>${esc(h.why)} <b>state so far</b>${esc(h.state_so_far)}
+    <b>resume point</b>${esc(h.resume_point)} <b>on release</b>${esc(h.on_release)}</div>`;
+}
+
+function expandHealth(r) {
+  const d = r.detail || {};
+  // Parked: the item is not held by anyone, and the release route depends on
+  // what it is waiting for (§7.5).
+  if (r.action === 'unpark' || r.action === 'answer') {
+    let html = parkHtml(d.park);
+    if (r.action === 'unpark') {
+      html += `<div class="actions">
+        <p class="why">Unpark only if you own what it is waiting for. It returns to the queue at raised rank and any free agent may resume from the handoff above — usually the lock broker or the pipeline does this on its own.</p>
+        <input class="inline" data-in="note" placeholder="note for whoever picks it up (optional)">
+        <button class="act primary" data-act="unpark" data-target="${esc(r.target)}">Send back to the queue</button></div>`;
+    } else {
+      html += `<div class="meta">this one is waiting on a decision — answer its question in the Decisions group above and it releases itself</div>`;
+    }
+    return html + noteBox(r.target);
+  }
+  // Drift: a watcher observed something newer than the worklog (§8). There is
+  // no operator action that clears it — the owning session clears it by writing
+  // the record forward — so the console does not offer one.
+  if (r.action === 'reconcile') {
+    return `<div class="meta">a watcher reported <b>${esc(d.link_type)}</b> state newer than anything on this item's worklog</div>
+      <pre class="links">${esc(JSON.stringify(d.entry, null, 2))}</pre>
+      <div class="meta">last worklog entry: ${d.last_event_at ? esc(d.last_event_at) : 'none'}</div>
+      <p class="why" style="margin:10px 0 0">Nothing here is yours to clear: the session holding this item reconciles it by writing what it did. Leave a note if it has been sitting.</p>` + noteBox(r.target);
+  }
+  // A holder that has gone quiet. The elapsed number is a fact; the judgement
+  // is the operator's, and so is the only button.
+  const owner = d.owner_session ? (state.sessions || []).find(s => s.id === d.owner_session) : null;
+  const gone = d.owner_status === 'ended';
+  return `<div class="meta">held by ${esc(d.owner_session || 'nobody')}${owner ? ` on ${esc(owner.host)}` : ''} · ${gone ? 'that session has ended' : 'session still active'} · last activity ${rel(r.elapsed_s)} ago</div>
+    <div class="actions">
+      <p class="why">${gone
+        ? 'The owning session ended without letting go. Releasing returns the item to the queue for any agent — that is the recovery, and it is a person’s call, never the surface’s.'
+        : 'An elapsed time, not a deadline. Release only if you believe this agent is gone; the work returns to the queue and its worklog carries whatever it managed.'}</p>
+      <input class="inline" data-in="note" placeholder="release note (optional)">
+      <button class="act ${gone ? 'primary' : 'bad'}" data-act="release" data-target="${esc(r.target)}">Release the claim</button>
+    </div>` + noteBox(r.target);
+}
+
+function expandReview(r) {
+  const d = r.detail || {};
+  return `<div class="prompt">${esc(d.title)}</div><div class="intent">${esc(d.intent || '')}</div>` +
+    recordHtml(d.completion) + triageButtons(r.target, 'review');
+}
+
+// ---------- the board (portfolio) ----------
+
+function renderPortfolio() {
+  if (!state.portfolio.length) {
+    return `<div class="empty"><div class="big">No projects yet.</div>
+      <p>A project is the unit of calibration: policies, knowledge and refs all scope inside one.</p>
+      <code>owp project add PLAT "platform" --goal "One codebase, many hands."</code></div>`;
+  }
+  const byId = new Map((state.sessions || []).map(s => [s.id, s]));
+  const quietFor = state.quietMin * 60;
+  let html = '';
+  for (const p of state.portfolio) {
+    const todo = p.todo || [];
+    const blocked = todo.filter(d => d.blocked).length;
+    const quietHolders = (p.in_flight || []).filter(d => {
+      const s = byId.get(d.owner_session);
+      return s && state.quietMin && s.idle_s >= quietFor;
+    }).length;
+    html += `<div class="proj">
+      <h3>${esc(p.key)} · ${esc(p.name)}</h3><div class="goal">${esc(p.goal)}</div>
+      <div class="tally">
+        <span><b>${p.working_set}</b> open</span>
+        <span><b>${p.in_flight.length}</b> in flight${quietHolders ? ` <span class="warn">(${quietHolders} quiet)</span>` : ''}</span>
+        <span><b>${p.parked.length}</b> waiting</span>
+        <span><b>${p.review.length}</b> in review</span>
+        <span><b>${todo.length}</b> queued${blocked ? ` <span class="warn">(${blocked} blocked)</span>` : ''}</span>
+        <span><b>${p.proposed.length}</b> proposed</span>
+      </div>`;
+    if (!p.working_set) html += '<div class="goal">Nothing open. Every deliverable has exited.</div>';
+    if (p.in_flight.length) {
+      html += '<div class="sub">In flight</div>';
+      for (const d of p.in_flight) {
+        const s = byId.get(d.owner_session);
+        const isQuiet = s && state.quietMin && s.idle_s >= quietFor;
+        html += `<div class="item" role="button" tabindex="0" data-view-ref="${esc(d.ref)}">
+          <span class="ref">${esc(d.ref)}</span><span class="t">${esc(d.title)}
+          ${d.status_line ? `<small>${esc(d.status_line)}</small>` : '<small>no status line yet</small>'}
+          ${d.next_checkpoint ? `<small class="next">next: ${esc(d.next_checkpoint)}</small>` : ''}</span>
+          <span class="sflag run${isQuiet ? ' quiet' : ''}">${esc(d.owner_session)}${s ? ' · ' + rel(s.idle_s) : ''}</span></div>`;
+      }
+    }
+    if (p.parked.length) {
+      html += '<div class="sub">Waiting on something</div>';
+      for (const d of p.parked) html += `<div class="item" role="button" tabindex="0" data-view-ref="${esc(d.ref)}">
+        <span class="ref">${esc(d.ref)}</span><span class="t">${esc(d.title)}
+        <small>waiting on ${esc(d.trigger)}</small></span>
+        <span class="sflag park">${rel(d.elapsed_s)}</span></div>`;
+    }
+    if (p.review.length) {
+      html += '<div class="sub">Done, waiting on you</div>';
+      for (const d of p.review) html += `<div class="item" role="button" tabindex="0" data-view-ref="${esc(d.ref)}">
+        <span class="ref">${esc(d.ref)}</span><span class="t">${esc(d.title)}</span>
+        <span class="sflag rev">review</span></div>`;
+    }
+    if (todo.length) {
+      html += `<div class="sub">Queued${blocked ? ` — ${blocked} blocked by dependencies` : ''}</div>`;
+      for (const d of todo) html += `<div class="item" role="button" tabindex="0" data-view-ref="${esc(d.ref)}">
+        <span class="ref">${esc(d.ref)}</span><span class="t">${esc(d.title)}
+        ${d.blocked ? `<small class="dep">blocked by ${(d.depends_on || []).map(esc).join(', ')}</small>` : ''}</span>
+        <span class="sflag todo${d.blocked ? ' blocked' : ''}">${d.blocked ? 'blocked' : 'queued'}${d.urgency !== 'routine' ? ' · ' + esc(d.urgency) : ''}</span></div>`;
+    }
+    if (p.proposed.length) {
+      html += '<div class="sub">Proposed — needs your yes or no</div>';
+      for (const d of p.proposed) html += `<div class="item" role="button" tabindex="0" data-view-ref="${esc(d.ref)}">
+        <span class="ref">${esc(d.ref)}</span><span class="t">${esc(d.title)}</span>
+        <span class="sflag prop">proposed</span></div>`;
+    }
+    html += '</div>';
+  }
+  return html;
+}
+
+// ---------- drawer ----------
+
+const WORKLOG_SHOWN = 40;
+
+function evBody(e) {
+  const b = e.body || {};
+  switch (e.kind) {
+    case 'progress': case 'note': return esc(b.text);
+    case 'question': return esc(b.prompt) + ' <small>' +
+      (b.options || []).map(o => esc(o.id) + ') ' + esc(o.label)).join(' · ') + '</small>';
+    case 'answer': return 'chose <b>' + esc(b.choice) + '</b>' + (b.text ? ' — ' + esc(b.text) : '') +
+      ' <small>on question #' + esc(b.question) + '</small>';
+    case 'rejection': return esc(b.what || '') + ' — ' + esc(b.reason) +
+      ' <small>continuation: ' + esc(b.continuation) + '</small>';
+    case 'unparked': return 'released by ' + esc(b.released_by || 'unpark') +
+      (b.note ? ' — ' + esc(b.note) : '') +
+      (b.park && b.park.trigger ? ' <small>was waiting on ' + esc(b.park.trigger) + '</small>' : '');
+    case 'completed': return esc(b.outcome || 'completed');
+    case 'cancelled': return 'cancelled — ' + esc(b.reason);
+    default: return esc(JSON.stringify(b));
+  }
+}
+
+async function openDrawer(ref) {
+  state.drawer = ref;
+  let v;
+  try { v = await call('work.view', { ref }); }
+  catch (e) {
+    state.drawer = null;
+    if (e instanceof Unauthenticated) { state.auth = 'refused'; return render(); }
+    return toast(e.message, true);
+  }
+  const d = v.deliverable;
+  const owner = d.owner_session ? (state.sessions || []).find(s => s.id === d.owner_session) : null;
+  let html = `<div class="drawer-bg" data-close="1"></div><div class="drawer" role="dialog" aria-label="${esc(d.ref)}">
+    <button class="close" data-close="1" aria-label="close">×</button>
+    <span class="ref">${esc(d.ref)}</span><h3>${esc(d.title)}</h3>
+    <div class="intent">${esc(d.intent)}</div>
+    <div class="kv">${esc(d.state)} · ${esc(d.kind)} · ${esc(d.urgency)} · priority ${d.priority}${d.pin ? ' · pin ' + d.pin : ''}${d.owner_session ? ' · held by ' + esc(d.owner_session) + (owner ? ' (quiet ' + rel(owner.idle_s) + ')' : '') : ''}${d.parent ? ' · parent ' + esc(d.parent) : ''}${d.depends_on.length ? ' · depends on ' + d.depends_on.map(esc).join(', ') : ''}</div>`;
+  if (d.status_line) html += `<div>${esc(d.status_line)}</div>`;
+  else if (d.state === 'in_progress') html += '<div class="meta">the owner has not written a status line yet</div>';
+  if (d.next_checkpoint) html += `<div class="intent">next: ${esc(d.next_checkpoint)}</div>`;
+  if (d.park) html += parkHtml(d.park);
+  if (v.completion) { html += '<h4>Completion record</h4>' + recordHtml(v.completion); }
+  if (Object.keys(d.links).length) {
+    html += '<h4>Links</h4>' + tagsHtml(d.links) +
+      `<pre class="links">${esc(JSON.stringify(d.links, null, 2))}</pre>`;
+  }
+
+  html += `<h4>Steer</h4><div class="actions">
+    <input class="inline" data-in="pin" type="number" min="1" placeholder="pin #" style="max-width:96px;flex:0" aria-label="pin ordinal">
+    <button class="act" data-act="pin" data-target="${esc(d.ref)}">Pin</button>
+    <button class="act" data-act="unpin" data-target="${esc(d.ref)}">Unpin</button>
+    <select class="inline" data-in="prio" aria-label="priority">${[1,2,3,4,5].map(n => `<option ${n === d.priority ? 'selected' : ''}>${n}</option>`).join('')}</select>
+    <button class="act" data-act="prio" data-target="${esc(d.ref)}">Set priority</button>
+    ${d.state === 'in_progress' ? `<button class="act bad" data-act="release" data-target="${esc(d.ref)}">Release claim</button>` : ''}
+    ${d.park && d.park.cause === 'external' ? `<button class="act primary" data-act="unpark" data-target="${esc(d.ref)}">Send back to the queue</button>` : ''}
+    <p class="why">A pin is your ordinal and outranks everything else the chooser looks at; priority is the softer lever. Neither touches the record's own voice.</p>
+  </div>${noteBox(d.ref)}
+  ${['proposed','todo','in_progress','parked','review'].includes(d.state) ? `<h4>Withdraw</h4><div class="actions">
+    <input class="inline" data-in="cancel-reason" placeholder="required reason">
+    <button class="act bad" data-act="cancel" data-target="${esc(d.ref)}">Cancel work</button>
+    <p class="why">Cancellation is terminal and retained in the worklog. Live dependent work must be cancelled or rewired first.</p>
+  </div>` : ''}`;
+
+  const log = v.worklog || [];
+  const shown = log.slice(-WORKLOG_SHOWN).reverse();
+  html += `<h4>Worklog${log.length > shown.length ? ` — newest ${shown.length} of ${log.length}` : ''}</h4>`;
+  for (const e of shown) {
+    html += `<div class="ev-row"><span class="seq">#${e.seq}</span>
+      <span class="k ${esc(e.kind)}">${esc(e.kind)}</span>
+      <span class="b">${evBody(e)}<br><small>${esc(e.actor || e.session)}</small></span>
+      <span class="when">${rel(Math.max(0, Math.round((Date.now() - Date.parse(e.at))/1000)))}</span></div>`;
+  }
+  if (!log.length) html += '<div class="meta">no events yet — this item has not been picked up</div>';
+  $('#overlay').innerHTML = html + '</div>';
+  const close = $('#overlay .close');
+  if (close) close.focus();
+  renderStatusbar();
+}
+
+function closeDrawer() { state.drawer = null; $('#overlay').innerHTML = ''; refresh(true); }
+
+// ---------- authentication gate ----------
+
+function renderGate() {
+  const refused = state.auth === 'refused';
+  return `<div class="gate">
+    <h2>This surface wants a token</h2>
+    <p${refused ? ' class="bad"' : ''}>${refused
+      ? 'That token was refused. The console needs the operator token: the board is not one of an agent token’s reads, so a session credential cannot drive this screen.'
+      : 'It is running with bearer-token authentication on. Paste the operator token; the console keeps it in this browser only.'}</p>
+    <input id="tok" type="password" placeholder="operator token" autocomplete="off" spellcheck="false">
+    <div class="actions"><button class="act primary" data-act="signin">Connect</button></div>
+  </div>`;
+}
+
+// ---------- status bar ----------
+
+function renderStatusbar() {
+  const el = $('#statusbar');
+  const d = state.describe;
+  const left = d
+    ? `<b>owp/${esc(d.protocol.version)}</b> · ${esc(d.surface.name)} ${esc(d.surface.version)} · you are ${esc(d.authority.class)}`
+    : 'connecting…';
+  let right;
+  if (state.auth !== 'ok') right = '<span class="err">not connected</span>';
+  else if (state.failures) {
+    right = `<span class="err">${state.lastSync
+      ? 'not syncing — last good read ' + rel(Math.round((Date.now() - state.lastSync) / 1000)) + ' ago'
+      : 'the surface has not answered yet'}</span><button data-act="retry">Retry</button>`;
+  } else if (paused()) {
+    right = `<span class="held">live updates held while you read</span>` +
+      (state.pages > 1 ? '<button data-act="reanchor">Resume</button>' : '');
+  } else {
+    right = state.lastSync ? 'synced ' + rel(Math.round((Date.now() - state.lastSync) / 1000)) + ' ago' : '…';
+  }
+  el.innerHTML = `<span>${left}</span><span class="right">${right}` +
+    (localStorage.getItem('owp-token') ? '<button data-act="signout">Sign out</button>' : '') + '</span>';
+}
+
+// ---------- render + wire ----------
+
+function render() {
+  $('#tab-attention').className = state.view === 'attention' ? 'active' : '';
+  $('#tab-portfolio').className = state.view === 'portfolio' ? 'active' : '';
+  const badge = $('#tab-count');
+  badge.textContent = state.total;
+  badge.className = 'badge' + (state.total ? '' : ' zero');
+  renderProjects();
+  if (state.auth !== 'ok') {
+    $('#situation').hidden = true;
+    $('#fleet').hidden = true;
+    // Only rebuild the gate when its message actually changed — otherwise a
+    // background poll would wipe a half-typed token every few seconds.
+    if (state.gateShown !== state.auth) {
+      state.gateShown = state.auth;
+      $('#main').innerHTML = renderGate();
+      const tok = $('#tok'); if (tok) tok.focus();
+    }
+  } else if (!state.booted) {
+    state.gateShown = null;
+    $('#main').innerHTML = '<div class="empty"><div class="big">Reading the surface…</div></div>';
+  } else {
+    state.gateShown = null;
+    renderSituation();
+    renderFleet();
+    let banner = '';
+    if (state.failures) {
+      banner = `<div class="banner"><b>stale</b> ${state.lastSync
+        ? 'The surface stopped answering. Everything below is the last good read, from ' + rel(Math.round((Date.now() - state.lastSync) / 1000)) + ' ago.'
+        : 'The surface has not answered yet.'}${state.lastError ? ' <span style="opacity:.75">' + esc(state.lastError) + '</span>' : ''}
+        <button class="act" data-act="retry">Try again</button></div>`;
+    }
+    $('#main').innerHTML = banner + (state.view === 'attention' ? renderAttention() : renderPortfolio());
+  }
+  renderStatusbar();
+}
+
+function signIn() {
+  const el = $('#tok');
+  const t = el ? el.value.trim() : '';
+  if (!t) return toast('paste the token first', true);
+  localStorage.setItem('owp-token', t);
+  state.auth = 'ok'; state.describe = null; state.projects = [];
+  refresh(true);
+}
+
+function handle(t) {
+  if (t.dataset.close !== undefined) return closeDrawer();
+  if (t.dataset.quiet !== undefined) {
+    state.quietMin = +t.dataset.quiet; return render();
+  }
+  if (t.dataset.jump) {
+    const g = document.getElementById('grp-' + t.dataset.jump);
+    if (g) g.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  if (t.dataset.toggle !== undefined && t.dataset.toggle !== '') {
+    state.expanded = state.expanded === t.dataset.toggle ? null : t.dataset.toggle;
+    return render();
+  }
+  if (t.dataset.viewRef) return void openDrawer(t.dataset.viewRef);
+  const box = t.closest('.expand, .drawer, .actions, .gate') || document;
+  const input = name => { const el = box.querySelector(`[data-in="${name}"]`); return el ? el.value.trim() : ''; };
+  const ref = t.dataset.ref || t.dataset.target;
+  switch (t.dataset.act) {
+    case 'signin': return signIn();
+    case 'signout':
+      localStorage.removeItem('owp-token');
+      state.auth = 'required'; state.describe = null; return render();
+    case 'retry': state.failures = 0; return void refresh(true);
+    case 'more': return void loadMore();
+    case 'reanchor': return void refresh(true);
+    case 'answer':
+      return void act(() => call('answer', { ref, question: +t.dataset.q, choice: t.dataset.choice }), 'answered ' + ref);
+    case 'answer-free': {
+      const text = input('text');
+      if (!text) return toast('type an answer first', true);
+      return void act(() => call('answer', { ref, question: +t.dataset.q, choice: 'other', text }), 'answered ' + ref);
+    }
+    case 'reject-q': {
+      const reason = input('reason');
+      if (!reason) return toast('a redirect needs your steer; dropping it needs a reason', true);
+      return void act(() => call('reject', { ref, reason, continuation: t.dataset.cont, event: +t.dataset.q }),
+        t.dataset.cont === 'redirect' ? 'redirected ' + ref : 'dropped the question on ' + ref);
+    }
+    case 'triage': {
+      const decision = t.dataset.decision, reason = input('reason'), cont = t.dataset.cont;
+      if (decision === 'reject' && !reason) return toast(cont === 'record-only' ? 'a hard no needs a reason — it is kept as negative knowledge' : 'say what you need before sending it back', true);
+      return void act(() => call('triage', { target: t.dataset.target, decision,
+        ...(reason ? { reason } : {}), ...(decision === 'reject' && cont ? { continuation: cont } : {}) }),
+        decision === 'accept' ? t.dataset.target + ' accepted'
+          : cont === 'record-only' ? t.dataset.target + ' rejected and closed'
+          : t.dataset.target + ' sent back');
+    }
+    case 'note': {
+      const text = input('comment');
+      if (!text) return toast('type the note first', true);
+      return void act(() => call('event.append', { ref, kind: 'note', body: { text } }), 'noted on ' + ref);
+    }
+    case 'unpark':
+      return void act(() => call('work.unpark', { ref, ...(input('note') ? { note: input('note') } : {}) }), ref + ' is back in the queue');
+    case 'release':
+      return void act(() => call('work.release', { ref, ...(input('note') ? { note: input('note') } : {}) }), ref + ' released to the queue');
+    case 'cancel': {
+      const reason = input('cancel-reason');
+      if (!reason) return toast('cancellation needs a reason', true);
+      if (!confirm('Cancel ' + ref + '? This terminal action stays in the worklog.')) return;
+      return void act(() => call('work.cancel', { ref, reason }), ref + ' cancelled');
+    }
+    case 'pin': {
+      const pin = +input('pin');
+      if (!pin) return toast('enter a pin ordinal — 1 goes out first', true);
+      return void act(() => call('work.pin', { ref, pin }), ref + ' pinned at #' + pin);
+    }
+    case 'unpin': return void act(() => call('work.pin', { ref, pin: null }), ref + ' unpinned');
+    case 'prio': return void act(() => call('work.reprioritize', { ref, priority: +input('prio') }), ref + ' priority set');
+  }
+}
+
+const SELECTOR = '[data-close],[data-toggle],[data-view-ref],[data-act],[data-quiet],[data-jump]';
+document.addEventListener('click', ev => {
+  const t = ev.target.closest(SELECTOR);
+  if (t) handle(t);
+});
+// Rows and chips are real controls: reachable by tab, opened by Enter or Space.
+document.addEventListener('keydown', ev => {
+  if (ev.key === 'Escape' && state.drawer) return closeDrawer();
+  if (ev.key === 'Enter' && ev.target.id === 'tok') { ev.preventDefault(); return signIn(); }
+  if (ev.key !== 'Enter' && ev.key !== ' ') return;
+  const t = ev.target.closest ? ev.target.closest('[role="button"]') : null;
+  if (!t || t.tagName === 'BUTTON') return;
+  ev.preventDefault();
+  handle(t);
+});
+
+$('#tab-attention').onclick = () => { state.view = 'attention'; state.expanded = null; render(); };
+$('#tab-portfolio').onclick = () => { state.view = 'portfolio'; render(); };
+// An operator works several projects and switches context IN THE CLIENT (§5) —
+// there are no cross-project sessions and no cross-project verbs to switch with.
+$('#proj').onchange = e => { state.project = e.target.value; state.expanded = null; refresh(true); };
+
+// The poll backs off when the surface is down, so a dead surface is not hammered
+// once a second by a tablet left on a desk, and comes straight back when the
+// operator returns to the tab.
+function schedule() {
+  const wait = state.failures ? Math.min(POLL_MS * Math.pow(2, state.failures), MAX_BACKOFF_MS) : POLL_MS;
+  setTimeout(async () => { if (!document.hidden) await refresh(false); else renderStatusbar(); schedule(); }, wait);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(false); });
+setInterval(renderStatusbar, 1000);
+
+refresh(true);
+schedule();
+</script>
+</body>
+</html>

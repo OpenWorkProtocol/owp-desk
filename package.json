@@ -1,0 +1,38 @@
+{
+  "name": "owp-desk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ridgeline Freight’s back office — OWP’s volume example: tenders, quotes, bookings, invoices and claims, with customers/lanes/drivers/carriers as knowledge pages and a dispatcher’s load board.",
+  "type": "module",
+  "license": "MIT",
+  "scripts": {
+    "prepublishOnly": "node -e \"throw new Error('OWP repositories are standalone examples and are not published to npm')\"",
+    "surface": "node vendor/owp-reference/src/server.ts",
+    "owp": "node vendor/owp-reference/src/cli.ts",
+    "init": "node tools/seed.ts 0",
+    "demo": "node tools/demo.ts",
+    "test": "node --test 'test/**/*.test.ts'",
+    "board": "node tools/loadboard.ts",
+    "seed": "node tools/seed.ts",
+    "entities": "node tools/entities.ts"
+  },
+  "engines": {
+    "node": ">=23.6"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OpenWorkProtocol/owp-desk.git"
+  },
+  "homepage": "https://openworkprotocol.io/examples/#owp-desk",
+  "bugs": { "url": "https://github.com/OpenWorkProtocol/owp-desk/issues" },
+  "keywords": ["open-work-protocol", "agents", "freight", "operations"],
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "pi": { "skills": ["./skills/"] },
+  "owp": {
+    "comment": "Standalone freight deployment: an embedded, pinned reference runtime powers the local surface, CLI, tests, and demo; the mailbox watcher ships in this repository.",
+    "surface": "vendor/owp-reference",
+    "watcher": "src/watcher.ts"
+  }
+}

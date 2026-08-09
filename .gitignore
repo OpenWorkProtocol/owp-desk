@@ -1,0 +1,6 @@
+node_modules/
+.owp-deps/ # legacy bootstrap cache; never part of a release
+.owp/session
+*.db
+*.db-wal
+*.db-shm
